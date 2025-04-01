@@ -119,10 +119,22 @@ shopify-mcp-server --accessToken=<YOUR_ACCESS_TOKEN> --domain=<YOUR_SHOP>.myshop
 ### Order Management
 
 1. `get-orders`
+
    - Get orders with optional filtering
    - Inputs:
      - `status` (optional string): Filter by order status
      - `limit` (optional number, default: 10): Maximum number of orders to return
+
+2. `update-order`
+   - Update an existing order with new information
+   - Inputs:
+     - `id` (string, required): Shopify order ID
+     - `tags` (array of strings, optional): New tags for the order
+     - `email` (string, optional): Update customer email
+     - `note` (string, optional): Order notes
+     - `customAttributes` (array of objects, optional): Custom attributes for the order
+     - `metafields` (array of objects, optional): Order metafields
+     - `shippingAddress` (object, optional): Shipping address information
 
 ## Debugging
 

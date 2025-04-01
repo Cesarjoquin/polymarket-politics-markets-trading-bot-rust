@@ -12,6 +12,7 @@ import { getCustomers } from "./tools/getCustomers.js";
 import { getOrders } from "./tools/getOrders.js";
 import { getProductById } from "./tools/getProductById.js";
 import { getProducts } from "./tools/getProducts.js";
+import { updateOrder } from "./tools/updateOrder.js";
 
 // Parse command line arguments
 const argv = minimist(process.argv.slice(2));
@@ -59,6 +60,7 @@ getProducts.initialize(shopifyClient);
 getProductById.initialize(shopifyClient);
 getCustomers.initialize(shopifyClient);
 getOrders.initialize(shopifyClient);
+updateOrder.initialize(shopifyClient);
 
 // Set up MCP server
 const server = new McpServer({
@@ -118,6 +120,56 @@ server.tool(
   },
   async (args) => {
     const result = await getOrders.execute(args);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result) }]
+    };
+  }
+);
+
+// Add the updateOrder tool
+server.tool(
+  "update-order",
+  {
+    id: z.string().min(1),
+    tags: z.array(z.string()).optional(),
+    email: z.string().email().optional(),
+    note: z.string().optional(),
+    customAttributes: z
+      .array(
+        z.object({
+          key: z.string(),
+          value: z.string()
+        })
+      )
+      .optional(),
+    metafields: z
+      .array(
+        z.object({
+          id: z.string().optional(),
+          namespace: z.string().optional(),
+          key: z.string().optional(),
+          value: z.string(),
+          type: z.string().optional()
+        })
+      )
+      .optional(),
+    shippingAddress: z
+      .object({
+        address1: z.string().optional(),
+        address2: z.string().optional(),
+        city: z.string().optional(),
+        company: z.string().optional(),
+        country: z.string().optional(),
+        firstName: z.string().optional(),
+        lastName: z.string().optional(),
+        phone: z.string().optional(),
+        province: z.string().optional(),
+        zip: z.string().optional()
+      })
+      .optional()
+  },
+  async (args) => {
+    const result = await updateOrder.execute(args);
     return {
       content: [{ type: "text", text: JSON.stringify(result) }]
     };
