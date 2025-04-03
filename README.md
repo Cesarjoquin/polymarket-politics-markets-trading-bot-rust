@@ -1,4 +1,5 @@
 # Shopify MCP Server
+
 (please leave a star if you like!)
 
 MCP Server for Shopify API, enabling interaction with store data through GraphQL API. This server provides tools for managing products, customers, orders, and more.
