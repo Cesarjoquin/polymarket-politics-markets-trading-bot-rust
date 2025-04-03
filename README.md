@@ -46,7 +46,7 @@ Add this to your `claude_desktop_config.json`:
     "shopify": {
       "command": "npx",
       "args": [
-        "shopify-mcp-server",
+        "shopify-mcp",
         "--accessToken",
         "<YOUR_ACCESS_TOKEN>",
         "--domain",
