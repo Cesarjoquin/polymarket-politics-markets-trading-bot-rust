@@ -212,7 +212,6 @@ server.tool(
     phone: z.string().optional(),
     tags: z.array(z.string()).optional(),
     note: z.string().optional(),
-    acceptsMarketing: z.boolean().optional(),
     taxExempt: z.boolean().optional(),
     metafields: z
       .array(

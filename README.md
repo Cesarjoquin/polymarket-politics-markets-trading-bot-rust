@@ -128,7 +128,6 @@ shopify-mcp-server --accessToken=<YOUR_ACCESS_TOKEN> --domain=<YOUR_SHOP>.myshop
      - `phone` (string, optional): Customer's phone number
      - `tags` (array of strings, optional): Tags to apply to the customer
      - `note` (string, optional): Note about the customer
-     - `acceptsMarketing` (boolean, optional): Whether the customer has consented to receive marketing emails
      - `taxExempt` (boolean, optional): Whether the customer is exempt from taxes
      - `metafields` (array of objects, optional): Customer metafields for storing additional data
 
