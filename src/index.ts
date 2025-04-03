@@ -13,6 +13,7 @@ import { getCustomers } from "./tools/getCustomers.js";
 import { getOrders } from "./tools/getOrders.js";
 import { getProductById } from "./tools/getProductById.js";
 import { getProducts } from "./tools/getProducts.js";
+import { updateCustomer } from "./tools/updateCustomer.js";
 import { updateOrder } from "./tools/updateOrder.js";
 
 // Parse command line arguments
@@ -63,6 +64,7 @@ getCustomers.initialize(shopifyClient);
 getOrders.initialize(shopifyClient);
 updateOrder.initialize(shopifyClient);
 getCustomerOrders.initialize(shopifyClient);
+updateCustomer.initialize(shopifyClient);
 
 // Set up MCP server
 const server = new McpServer({
@@ -190,6 +192,42 @@ server.tool(
   },
   async (args) => {
     const result = await getCustomerOrders.execute(args);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result) }]
+    };
+  }
+);
+
+// Add the updateCustomer tool
+server.tool(
+  "update-customer",
+  {
+    id: z
+      .string()
+      .regex(/^\d+$/, "Customer ID must be numeric")
+      .describe("Shopify customer ID, numeric excluding gid prefix"),
+    firstName: z.string().optional(),
+    lastName: z.string().optional(),
+    email: z.string().email().optional(),
+    phone: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    note: z.string().optional(),
+    acceptsMarketing: z.boolean().optional(),
+    taxExempt: z.boolean().optional(),
+    metafields: z
+      .array(
+        z.object({
+          id: z.string().optional(),
+          namespace: z.string().optional(),
+          key: z.string().optional(),
+          value: z.string(),
+          type: z.string().optional()
+        })
+      )
+      .optional()
+  },
+  async (args) => {
+    const result = await updateCustomer.execute(args);
     return {
       content: [{ type: "text", text: JSON.stringify(result) }]
     };

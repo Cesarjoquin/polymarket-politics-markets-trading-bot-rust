@@ -111,10 +111,32 @@ shopify-mcp-server --accessToken=<YOUR_ACCESS_TOKEN> --domain=<YOUR_SHOP>.myshop
 ### Customer Management
 
 1. `get-customers`
+
    - Get customers or search by name/email
    - Inputs:
      - `searchQuery` (optional string): Filter customers by name or email
      - `limit` (optional number, default: 10): Maximum number of customers to return
+
+2. `update-customer`
+
+   - Update a customer's information
+   - Inputs:
+     - `id` (string, required): Shopify customer ID (numeric ID only, like "6276879810626")
+     - `firstName` (string, optional): Customer's first name
+     - `lastName` (string, optional): Customer's last name
+     - `email` (string, optional): Customer's email address
+     - `phone` (string, optional): Customer's phone number
+     - `tags` (array of strings, optional): Tags to apply to the customer
+     - `note` (string, optional): Note about the customer
+     - `acceptsMarketing` (boolean, optional): Whether the customer has consented to receive marketing emails
+     - `taxExempt` (boolean, optional): Whether the customer is exempt from taxes
+     - `metafields` (array of objects, optional): Customer metafields for storing additional data
+
+3. `get-customer-orders`
+   - Get orders for a specific customer
+   - Inputs:
+     - `customerId` (string, required): Shopify customer ID (numeric ID only, like "6276879810626")
+     - `limit` (optional number, default: 10): Maximum number of orders to return
 
 ### Order Management
 
@@ -136,12 +158,6 @@ shopify-mcp-server --accessToken=<YOUR_ACCESS_TOKEN> --domain=<YOUR_SHOP>.myshop
      - `customAttributes` (array of objects, optional): Custom attributes for the order
      - `metafields` (array of objects, optional): Order metafields
      - `shippingAddress` (object, optional): Shipping address information
-
-3. `get-customer-orders`
-   - Get orders for a specific customer
-   - Inputs:
-     - `customerId` (string, required): Shopify customer ID (numeric ID only, like "6276879810626")
-     - `limit` (optional number, default: 10): Maximum number of orders to return
 
 ## Debugging
 
