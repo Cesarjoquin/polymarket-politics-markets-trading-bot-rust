@@ -8,6 +8,7 @@ import minimist from "minimist";
 import { z } from "zod";
 
 // Import tools
+import { getCustomerOrders } from "./tools/getCustomerOrders.js";
 import { getCustomers } from "./tools/getCustomers.js";
 import { getOrders } from "./tools/getOrders.js";
 import { getProductById } from "./tools/getProductById.js";
@@ -61,6 +62,7 @@ getProductById.initialize(shopifyClient);
 getCustomers.initialize(shopifyClient);
 getOrders.initialize(shopifyClient);
 updateOrder.initialize(shopifyClient);
+getCustomerOrders.initialize(shopifyClient);
 
 // Set up MCP server
 const server = new McpServer({
@@ -170,6 +172,24 @@ server.tool(
   },
   async (args) => {
     const result = await updateOrder.execute(args);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result) }]
+    };
+  }
+);
+
+// Add the getCustomerOrders tool
+server.tool(
+  "get-customer-orders",
+  {
+    customerId: z
+      .string()
+      .regex(/^\d+$/, "Customer ID must be numeric")
+      .describe("Shopify customer ID, numeric excluding gid prefix"),
+    limit: z.number().default(10)
+  },
+  async (args) => {
+    const result = await getCustomerOrders.execute(args);
     return {
       content: [{ type: "text", text: JSON.stringify(result) }]
     };

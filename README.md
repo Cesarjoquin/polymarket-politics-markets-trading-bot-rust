@@ -126,6 +126,7 @@ shopify-mcp-server --accessToken=<YOUR_ACCESS_TOKEN> --domain=<YOUR_SHOP>.myshop
      - `limit` (optional number, default: 10): Maximum number of orders to return
 
 2. `update-order`
+
    - Update an existing order with new information
    - Inputs:
      - `id` (string, required): Shopify order ID
@@ -135,6 +136,12 @@ shopify-mcp-server --accessToken=<YOUR_ACCESS_TOKEN> --domain=<YOUR_SHOP>.myshop
      - `customAttributes` (array of objects, optional): Custom attributes for the order
      - `metafields` (array of objects, optional): Order metafields
      - `shippingAddress` (object, optional): Shipping address information
+
+3. `get-customer-orders`
+   - Get orders for a specific customer
+   - Inputs:
+     - `customerId` (string, required): Shopify customer ID (numeric ID only, like "6276879810626")
+     - `limit` (optional number, default: 10): Maximum number of orders to return
 
 ## Debugging
 
