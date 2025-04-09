@@ -152,7 +152,13 @@ shopify-mcp-server --accessToken=<YOUR_ACCESS_TOKEN> --domain=<YOUR_SHOP>.myshop
      - `status` (optional string): Filter by order status
      - `limit` (optional number, default: 10): Maximum number of orders to return
 
-2. `update-order`
+2. `get-order-by-id`
+
+   - Get a specific order by ID
+   - Inputs:
+     - `orderId` (string, required): Full Shopify order ID (e.g., "gid://shopify/Order/6090960994370")
+
+3. `update-order`
 
    - Update an existing order with new information
    - Inputs:
