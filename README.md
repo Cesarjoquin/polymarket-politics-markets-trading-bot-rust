@@ -4,6 +4,9 @@
 
 MCP Server for Shopify API, enabling interaction with store data through GraphQL API. This server provides tools for managing products, customers, orders, and more.
 
+**📦 Package Name: `shopify-mcp`**  
+**🚀 Command: `shopify-mcp` (NOT `shopify-mcp-server`)**
+
 <a href="https://glama.ai/mcp/servers/@GeLi2001/shopify-mcp">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@GeLi2001/shopify-mcp/badge" alt="Shopify MCP server" />
 </a>
@@ -81,7 +84,7 @@ If you prefer to use environment variables instead of command-line arguments:
 
 2. Run the server with npx:
    ```
-   npx shopify-mcp-server
+   npx shopify-mcp
    ```
 
 ### Direct Installation (Optional)
@@ -89,14 +92,16 @@ If you prefer to use environment variables instead of command-line arguments:
 If you want to install the package globally:
 
 ```
-npm install -g shopify-mcp-server
+npm install -g shopify-mcp
 ```
 
 Then run it:
 
 ```
-shopify-mcp-server --accessToken=<YOUR_ACCESS_TOKEN> --domain=<YOUR_SHOP>.myshopify.com
+shopify-mcp --accessToken=<YOUR_ACCESS_TOKEN> --domain=<YOUR_SHOP>.myshopify.com
 ```
+
+**⚠️ Important:** If you see errors about "SHOPIFY_ACCESS_TOKEN environment variable is required" when using command-line arguments, you might have a different package installed. Make sure you're using `shopify-mcp`, not `shopify-mcp-server`.
 
 ## Available Tools
 
