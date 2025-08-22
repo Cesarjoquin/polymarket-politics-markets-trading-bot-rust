@@ -119,8 +119,17 @@ shopify-mcp --accessToken=<YOUR_ACCESS_TOKEN> --domain=<YOUR_SHOP>.myshopify.com
    - Inputs:
      - `productId` (string): ID of the product to retrieve
 
-### Customer Management
+3. `createProduct`
+    - Create new product in store 
+    - Inputs:
+        - `title` (string): Title of the product
+        - `descriptionHtml` (string): Description of the product
+        - `vendor` (string): Vendor of the product
+        - `productType` (string): Type of the product
+        - `tags` (string): Tags of the product
+        - `status` (string): Status of the product "ACTIVE", "DRAFT", "ARCHIVED". Default "DRAFT"
 
+### Customer Management
 1. `get-customers`
 
    - Get customers or search by name/email
