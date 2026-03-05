@@ -1,12 +1,10 @@
-//! Gamma API client for fetching BTC 5-minute markets.
+//! Gamma API client for fetching 5-minute Up/Down markets (BTC, ETH, SOL).
 
+use crate::config::TradeAsset;
 use crate::types::MarketInfo;
 use anyhow::Result;
 use reqwest::Client;
 use serde::Deserialize;
-
-const BTC_5M_SERIES_ID: &str = "10684";
-const BTC_5M_SLUG: &str = "btc-updown-5m";
 
 #[derive(Debug, Deserialize)]
 struct GammaEvent {
@@ -15,37 +13,22 @@ struct GammaEvent {
     markets: Option<Vec<serde_json::Value>>,
 }
 
-pub async fn find_btc_5m_markets(client: &Client, gamma_host: &str) -> Result<Vec<MarketInfo>> {
-    let url = format!("{}/events", gamma_host.trim_end_matches('/'));
-    let resp = client
-        .get(&url)
-        .query(&[
-            ("series_id", BTC_5M_SERIES_ID),
-            ("active", "true"),
-            ("closed", "false"),
-            ("limit", "25"),
-        ])
-        .send()
-        .await?;
-    let events: Vec<GammaEvent> = resp.json().await.unwrap_or_default();
-
-    let mut markets = Vec::new();
-    for event in events {
-        let markets_arr = event.markets.as_deref().unwrap_or(&[]);
-        for m in markets_arr {
-            if let Some(market) = parse_market(m, event.id.as_deref(), event.title.as_deref()) {
-                if is_btc_up_down(&market) {
-                    markets.push(market);
-                }
+/// Fetch all active 5m Up/Down markets for the given assets, merged and deduped by market key.
+pub async fn find_5m_updown_markets(
+    client: &Client,
+    gamma_host: &str,
+    assets: &[TradeAsset],
+) -> Result<Vec<MarketInfo>> {
+    let mut all = Vec::new();
+    for asset in assets {
+        let markets = fetch_markets_by_slug(client, gamma_host, *asset).await?;
+        for m in markets {
+            if is_up_down_for_asset(&m, *asset) {
+                all.push(m);
             }
         }
     }
-
-    if markets.is_empty() {
-        markets = fetch_markets_by_slug(client, gamma_host).await?;
-    }
-
-    Ok(markets)
+    Ok(all)
 }
 
 fn parse_market(
@@ -91,17 +74,21 @@ fn parse_market(
     })
 }
 
-fn is_btc_up_down(m: &MarketInfo) -> bool {
+fn is_up_down_for_asset(m: &MarketInfo, asset: TradeAsset) -> bool {
     let q = m.question().to_lowercase();
-    q.contains("bitcoin") && q.contains("up or down")
+    q.contains(asset.question_keyword()) && q.contains("up or down")
 }
 
-async fn fetch_markets_by_slug(client: &Client, gamma_host: &str) -> Result<Vec<MarketInfo>> {
+async fn fetch_markets_by_slug(
+    client: &Client,
+    gamma_host: &str,
+    asset: TradeAsset,
+) -> Result<Vec<MarketInfo>> {
     let url = format!("{}/markets", gamma_host.trim_end_matches('/'));
     let resp = client
         .get(&url)
         .query(&[
-            ("slug", BTC_5M_SLUG),
+            ("slug", asset.slug()),
             ("active", "true"),
             ("closed", "false"),
             ("enableOrderBook", "true"),
@@ -113,9 +100,7 @@ async fn fetch_markets_by_slug(client: &Client, gamma_host: &str) -> Result<Vec<
     let mut markets = Vec::new();
     for m in arr {
         if let Some(market) = parse_market(&m, None, None) {
-            if is_btc_up_down(&market) {
-                markets.push(market);
-            }
+            markets.push(market);
         }
     }
     Ok(markets)

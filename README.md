@@ -1,11 +1,11 @@
-# Polymarket Bitcoin 5-Minute Bot (Rust)
+# Polymarket 5-Minute Up/Down Bot (Rust)
 
-Automated **Rust** bot that trades Polymarket’s BTC 5‑minute “Up or Down” markets via the CLOB REST API.
+Automated **Rust** bot that trades Polymarket’s 5‑minute “Up or Down” markets (Bitcoin, Ethereum, Solana) via the CLOB REST API.
 
 It:
 
 - Connects with your Polymarket wallet (EOA + Gnosis Safe proxy)
-- Finds currently active BTC 5‑minute markets via the Gamma API
+- Finds active 5m Up/Down markets for **BTC, ETH, and/or SOL** (configurable)
 - Places **one BUY per outcome (Up and Down)** per market when price conditions are met
 - Tracks fills and places a **SELL** when price ≥ sell target, or **stop-loss** when price ≤ 67% of target
 - Sells at current bid when it’s ≥ sell price; otherwise places limit at sell price
@@ -39,6 +39,9 @@ PRIVATE_KEY=0x...         # EOA private key that controls your Polymarket accoun
 CLOB_HOST=https://clob.polymarket.com
 CHAIN_ID=137
 GAMMA_HOST=https://gamma-api.polymarket.com
+
+# Which 5m Up/Down markets to trade: btc, eth, sol (comma-separated; default: btc)
+TRADE_MARKETS=btc,eth,sol
 
 TARGET_PRICE_UP=0.45
 SELL_PRICE_UP=0.55
@@ -74,7 +77,8 @@ Stop with `Ctrl+C`.
 
 ## Behavior
 
-- **One market at a time**: Only the **next** eligible BTC 5m window is traded (single slot).
+- **One market at a time**: Only the **next** eligible 5m window across your chosen assets is traded (single slot).
+- **Choose assets**: Set `TRADE_MARKETS=btc`, `btc,eth`, `btc,eth,sol`, etc. to trade Bitcoin, Ethereum, and/or Solana 5m Up/Down.
 - **One BUY per outcome per market**: At most one Up and one Down per market duration; no re-buy after sell.
 - **Sell when**:
   - Price ≥ configured sell price (take-profit), or

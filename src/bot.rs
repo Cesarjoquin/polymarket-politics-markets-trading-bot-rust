@@ -1,7 +1,7 @@
 //! Main bot loop: market discovery, orders, fill detection, stop-loss, emergency exit.
 
 use crate::clob::ClobClient;
-use crate::config::Config;
+use crate::config::{Config, TradeAsset};
 use crate::gamma;
 use crate::logger;
 use crate::types::{MarketInfo, Outcome, TrackedOrder, TrackedSellInfo};
@@ -70,7 +70,7 @@ impl Bot {
     pub async fn run(&mut self) -> Result<()> {
         logger::init_global_log_file(self.config.log_file.as_deref());
         logger::divider();
-        logger::log("CONFIG", "Polymarket BTC 5-Minute Bot (Rust)");
+        logger::log("CONFIG", "Polymarket 5-Minute Up/Down Bot (Rust)");
         logger::divider();
         logger::log("CONFIG", &format!("CLOB host: {}", self.config.clob_host));
         logger::log("CONFIG", &format!("Up BUY target: {}  SELL: {}", self.config.target_price_up, self.config.sell_price_up));
@@ -78,6 +78,8 @@ impl Bot {
         logger::log("CONFIG", &format!("Stop loss: Up {} / Down {} (67% of target)", self.config.stop_loss_price_up(), self.config.stop_loss_price_down()));
         logger::log("CONFIG", &format!("Order amount: {} tokens per side", self.config.order_amount_token));
         logger::log("CONFIG", &format!("Check interval: {}ms", self.config.check_interval_ms));
+        let assets: Vec<&str> = self.config.trade_markets.iter().map(TradeAsset::as_str).collect();
+        logger::log("CONFIG", &format!("Trade markets: {} (5m Up/Down)", assets.join(", ")));
         logger::divider();
 
         let mut ticker = interval(Duration::from_millis(self.config.check_interval_ms));
@@ -372,10 +374,15 @@ impl Bot {
     }
 
     async fn discover_and_enter_markets(&mut self) -> Result<()> {
-        let markets = gamma::find_btc_5m_markets(&self.http, &self.config.gamma_host).await?;
+        let markets = gamma::find_5m_updown_markets(
+            &self.http,
+            &self.config.gamma_host,
+            &self.config.trade_markets,
+        )
+        .await?;
         let live = self.filter_live_markets(markets);
         if live.is_empty() {
-            logger::warn("LOOP", "No active BTC 5m markets – will retry");
+            logger::warn("LOOP", "No active 5m Up/Down markets – will retry");
             return Ok(());
         }
         let monitored_keys: HashSet<_> = self.market_id_to_key.values().cloned().collect();
