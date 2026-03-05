@@ -1,0 +1,13 @@
+# Rust
+target/
+
+# Env and logs
+.env
+*.log
+logs/
+.DS_Store
+
+# Legacy / other
+dist/
+build/
+node_modules/
