@@ -2,7 +2,7 @@
 name = "polymarket-bot"
 version = "1.0.0"
 edition = "2021"
-description = "Automated Rust bot for Polymarket BTC 5-minute Up or Down markets"
+description = "Automated Rust bot for Polymarket politics (and keyword-based) binary markets"
 authors = []
 license = "ISC"
 

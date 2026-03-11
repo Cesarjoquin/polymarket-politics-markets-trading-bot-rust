@@ -1,6 +1,5 @@
-//! Gamma API client for fetching 5-minute Up/Down markets (BTC, ETH, SOL).
+//! Gamma API client for fetching politics (and other keyword-based) markets.
 
-use crate::config::TradeAsset;
 use crate::types::MarketInfo;
 use anyhow::Result;
 use reqwest::Client;
@@ -13,46 +12,90 @@ struct GammaEvent {
     markets: Option<Vec<serde_json::Value>>,
 }
 
-/// Fetch all active 5m Up/Down markets for the given assets, merged and deduped by market key.
-pub async fn find_5m_updown_markets(
+/// Fetch active binary markets whose event title or market question matches any of the given keywords.
+pub async fn find_politics_markets(
     client: &Client,
     gamma_host: &str,
-    assets: &[TradeAsset],
+    keywords: &[String],
 ) -> Result<Vec<MarketInfo>> {
+    let url = format!("{}/events", gamma_host.trim_end_matches('/'));
+    let resp = client
+        .get(&url)
+        .query(&[
+            ("limit", "100"),
+            ("active", "true"),
+            ("closed", "false"),
+        ])
+        .send()
+        .await?;
+    let events: Vec<GammaEvent> = resp.json().await.unwrap_or_default();
+    let now = chrono::Utc::now();
     let mut all = Vec::new();
-    for asset in assets {
-        let markets = fetch_markets_by_slug(client, gamma_host, *asset).await?;
+    for ev in events {
+        let title_lower = ev.title.as_deref().unwrap_or("").to_lowercase();
+        let event_matches = keywords
+            .iter()
+            .any(|k| !k.is_empty() && title_lower.contains(k));
+        let markets = ev.markets.as_deref().unwrap_or(&[]);
         for m in markets {
-            if is_up_down_for_asset(&m, *asset) {
-                all.push(m);
+            let question = m.get("question").and_then(|v| v.as_str()).unwrap_or("");
+            let question_lower = question.to_lowercase();
+            let market_matches = event_matches
+                || keywords
+                    .iter()
+                    .any(|k| !k.is_empty() && question_lower.contains(k));
+            if !market_matches {
+                continue;
+            }
+            let closed = m.get("closed").and_then(|v| v.as_bool()).unwrap_or(true);
+            let active = m.get("active").and_then(|v| v.as_bool()).unwrap_or(false);
+            let enable_order_book = m.get("enableOrderBook").and_then(|v| v.as_bool()).unwrap_or(false);
+            let end_date_str = match m.get("endDate").and_then(|v| v.as_str()) {
+                Some(s) => s,
+                _ => continue,
+            };
+            let end_date: chrono::DateTime<chrono::Utc> = match end_date_str.parse() {
+                Ok(d) => d,
+                _ => continue,
+            };
+            if closed || !active || !enable_order_book || end_date <= now {
+                continue;
+            }
+            let token_ids = match m.get("clobTokenIds") {
+                Some(serde_json::Value::Array(arr)) => {
+                    let ids: Vec<String> = arr
+                        .iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect();
+                    if ids.len() != 2 {
+                        continue;
+                    }
+                    crate::types::TokenIds::Array(ids)
+                }
+                Some(serde_json::Value::String(_)) => continue,
+                _ => continue,
+            };
+            if let Some(market) = parse_market_from_value(
+                m,
+                ev.id.as_deref(),
+                ev.title.as_deref(),
+                token_ids,
+            ) {
+                all.push(market);
             }
         }
     }
     Ok(all)
 }
 
-fn parse_market(
+fn parse_market_from_value(
     m: &serde_json::Value,
     event_id: Option<&str>,
     event_name: Option<&str>,
+    token_ids: crate::types::TokenIds,
 ) -> Option<MarketInfo> {
     let market_id = m.get("id")?.as_str()?.to_string();
     let question = m.get("question").and_then(|v| v.as_str()).map(String::from);
-    let token_ids = match m.get("clobTokenIds") {
-        Some(serde_json::Value::Array(arr)) => {
-            let ids: Vec<String> = arr
-                .iter()
-                .filter_map(|v| v.as_str().map(String::from))
-                .collect();
-            if ids.len() == 1 {
-                crate::types::TokenIds::Single(ids[0].clone())
-            } else {
-                crate::types::TokenIds::Array(ids)
-            }
-        }
-        Some(serde_json::Value::String(s)) => crate::types::TokenIds::Single(s.clone()),
-        _ => return None,
-    };
     let outcomes = m
         .get("outcomes")
         .and_then(|v| v.as_array())
@@ -72,36 +115,4 @@ fn parse_market(
         end_date,
         start_date,
     })
-}
-
-fn is_up_down_for_asset(m: &MarketInfo, asset: TradeAsset) -> bool {
-    let q = m.question().to_lowercase();
-    q.contains(asset.question_keyword()) && q.contains("up or down")
-}
-
-async fn fetch_markets_by_slug(
-    client: &Client,
-    gamma_host: &str,
-    asset: TradeAsset,
-) -> Result<Vec<MarketInfo>> {
-    let url = format!("{}/markets", gamma_host.trim_end_matches('/'));
-    let resp = client
-        .get(&url)
-        .query(&[
-            ("slug", asset.slug()),
-            ("active", "true"),
-            ("closed", "false"),
-            ("enableOrderBook", "true"),
-            ("limit", "25"),
-        ])
-        .send()
-        .await?;
-    let arr: Vec<serde_json::Value> = resp.json().await.unwrap_or_default();
-    let mut markets = Vec::new();
-    for m in arr {
-        if let Some(market) = parse_market(&m, None, None) {
-            markets.push(market);
-        }
-    }
-    Ok(markets)
 }

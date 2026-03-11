@@ -1,6 +1,6 @@
-//! Polymarket Bitcoin 5-Minute Trading Bot (Rust).
+//! Polymarket Politics Markets Trading Bot (Rust).
 //!
-//! Trades BTC Up or Down 5-minute markets: both-sided BUY when price at target,
+//! Trades binary (e.g. politics) markets by keyword: both-sided BUY when price at target,
 //! SELL when price >= sell target or stop-loss when price <= 67% of target.
 
 mod bot;

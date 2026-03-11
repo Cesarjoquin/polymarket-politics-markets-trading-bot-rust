@@ -1,12 +1,12 @@
-# Polymarket 5-Minute Up/Down Bot (Rust)
+# Polymarket Politics Markets Bot (Rust)
 
-Automated **Rust** bot that trades Polymarket’s 5‑minute “Up or Down” markets (Bitcoin, Ethereum, Solana) via the CLOB REST API.
+Automated **Rust** bot that trades Polymarket **politics** (and other keyword-based) binary markets via the CLOB REST API.
 
 It:
 
 - Connects with your Polymarket wallet (EOA + Gnosis Safe proxy)
-- Finds active 5m Up/Down markets for **BTC, ETH, and/or SOL** (configurable)
-- Places **one BUY per outcome (Up and Down)** per market when price conditions are met
+- Finds active **binary** markets whose event title or question matches your keywords (e.g. politics, election, vote, government)
+- Places **one BUY per outcome (first = “Up”, second = “Down”)** per market when price conditions are met
 - Tracks fills and places a **SELL** when price ≥ sell target, or **stop-loss** when price ≤ 67% of target
 - Sells at current bid when it’s ≥ sell price; otherwise places limit at sell price
 - Emergency exit near market close to avoid holding into resolution
@@ -19,7 +19,7 @@ It:
 ## Build
 
 ```bash
-cd arcane-build/polymarket-bot-rust
+cd polymarket-politics-markets-trading-bot
 cargo build --release
 ```
 
@@ -40,8 +40,8 @@ CLOB_HOST=https://clob.polymarket.com
 CHAIN_ID=137
 GAMMA_HOST=https://gamma-api.polymarket.com
 
-# Which 5m Up/Down markets to trade: btc, eth, sol (comma-separated; default: btc)
-TRADE_MARKETS=btc,eth,sol
+# Keywords to match event/market title or question (comma-separated; default: politics,election,vote,government,congress,senate)
+POLITICS_KEYWORDS=politics,election,vote,government,congress,senate
 
 TARGET_PRICE_UP=0.45
 SELL_PRICE_UP=0.55
@@ -62,8 +62,9 @@ FUNDER_ADDRESS=0xYourSafeProxyAddress
 
 - **PRIVATE_KEY**: EOA you use with Polymarket (e.g. MetaMask).
 - **FUNDER_ADDRESS**: Your Polymarket Safe proxy address (recommended for CLOB `signatureType=2`). Omit to use the EOA as funder.
+- **POLITICS_KEYWORDS**: At least one keyword; events/markets whose title or question contains any of these (case-insensitive) are considered. Examples: `politics`, `election`, `vote`, `government`, `congress`, `senate`.
 - **ORDER_AMOUNT_TOKEN**: Shares per side; minimum 5. USD per side ≈ `ORDER_AMOUNT_TOKEN × TARGET_PRICE_*`.
-- **Stop loss**: Fixed at **67% of the buy (target) price** for both Up and Down.
+- **Stop loss**: Fixed at **67% of the buy (target) price** for both outcomes.
 
 ## Run
 
@@ -77,9 +78,9 @@ Stop with `Ctrl+C`.
 
 ## Behavior
 
-- **One market at a time**: Only the **next** eligible 5m window across your chosen assets is traded (single slot).
-- **Choose assets**: Set `TRADE_MARKETS=btc`, `btc,eth`, `btc,eth,sol`, etc. to trade Bitcoin, Ethereum, and/or Solana 5m Up/Down.
-- **One BUY per outcome per market**: At most one Up and one Down per market duration; no re-buy after sell.
+- **One market at a time**: Only the **next** eligible market (by start date) matching your keywords is traded per iteration.
+- **Binary only**: Only markets with exactly two outcomes (e.g. Yes/No) are traded; first token = “Up”, second = “Down” for pricing/stop-loss.
+- **One BUY per outcome per market**: At most one buy per side per market; no re-buy after sell.
 - **Sell when**:
   - Price ≥ configured sell price (take-profit), or
   - Price ≤ stop-loss (67% of target).
@@ -91,7 +92,7 @@ Stop with `Ctrl+C`.
 - `src/config.rs` – Env-based configuration and validation.
 - `src/types.rs` – Market, order, and outcome types.
 - `src/logger.rs` – Console and optional file / per-market logging.
-- `src/gamma.rs` – Gamma API client for BTC 5m markets.
+- `src/gamma.rs` – Gamma API client for politics (keyword-based) market discovery.
 - `src/clob.rs` – CLOB client: EIP-712 auth (derive API key), HMAC L2, limit orders, balance, open orders, cancel.
 - `src/bot.rs` – Main loop: discovery, enter market, fill detection, SELL placement, stop-loss, emergency exit.
 

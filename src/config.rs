@@ -16,64 +16,15 @@ const DEFAULT_MIN_SECONDS_TO_ENTER: u64 = 20;
 const DEFAULT_MIN_SECONDS_BEFORE_EXPIRY: u64 = 299;
 const DEFAULT_EXIT_BEFORE_CLOSE_SECONDS: u64 = 20;
 const DEFAULT_AGGRESSIVE_EXIT_PRICE: f64 = 0.4;
-const DEFAULT_TRADE_MARKETS: &str = "btc";
+const DEFAULT_POLITICS_KEYWORDS: &str = "politics,election,vote,government,congress,senate";
 
-/// Which 5-minute Up/Down markets to trade. Set via TRADE_MARKETS=btc,eth,sol (comma-separated).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum TradeAsset {
-    Btc,
-    Eth,
-    Sol,
-}
-
-impl TradeAsset {
-    /// Gamma API slug for this asset's 5m Up/Down market.
-    pub fn slug(&self) -> &'static str {
-        match self {
-            TradeAsset::Btc => "btc-updown-5m",
-            TradeAsset::Eth => "eth-updown-5m",
-            TradeAsset::Sol => "sol-updown-5m",
-        }
-    }
-    /// Question must contain this keyword (e.g. "bitcoin", "ethereum", "solana").
-    pub fn question_keyword(&self) -> &'static str {
-        match self {
-            TradeAsset::Btc => "bitcoin",
-            TradeAsset::Eth => "ethereum",
-            TradeAsset::Sol => "solana",
-        }
-    }
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            TradeAsset::Btc => "btc",
-            TradeAsset::Eth => "eth",
-            TradeAsset::Sol => "sol",
-        }
-    }
-}
-
-impl std::str::FromStr for TradeAsset {
-    type Err = anyhow::Error;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.trim().to_lowercase().as_str() {
-            "btc" | "bitcoin" => Ok(TradeAsset::Btc),
-            "eth" | "ethereum" => Ok(TradeAsset::Eth),
-            "sol" | "solana" => Ok(TradeAsset::Sol),
-            _ => anyhow::bail!("Unknown asset '{}'; use btc, eth, or sol", s),
-        }
-    }
-}
-
-fn parse_trade_markets(s: String) -> Result<Vec<TradeAsset>> {
-    let mut out = Vec::new();
-    let mut seen = std::collections::HashSet::new();
-    for part in s.split(',') {
-        let a: TradeAsset = part.parse()?;
-        if seen.insert(a) {
-            out.push(a);
-        }
-    }
-    Ok(out)
+fn parse_politics_keywords(s: String) -> Vec<String> {
+    s.split(',')
+        .map(|p| p.trim().to_lowercase())
+        .filter(|p| !p.is_empty())
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 #[derive(Clone, Debug)]
@@ -96,8 +47,8 @@ pub struct Config {
     pub trading_mode: TradingMode,
     pub log_file: Option<String>,
     pub funder_address: Option<String>,
-    /// Which 5m Up/Down markets to trade (e.g. btc, eth, sol).
-    pub trade_markets: Vec<TradeAsset>,
+    /// Keywords to match event/market title or question (e.g. politics, election, vote).
+    pub politics_keywords: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -177,7 +128,9 @@ impl Config {
         let log_file = std::env::var("LOG_FILE").ok();
         let funder_address = std::env::var("FUNDER_ADDRESS").ok();
 
-        let trade_markets = parse_trade_markets(std::env::var("TRADE_MARKETS").unwrap_or_else(|_| DEFAULT_TRADE_MARKETS.to_string()))?;
+        let politics_keywords = parse_politics_keywords(
+            std::env::var("POLITICS_KEYWORDS").unwrap_or_else(|_| DEFAULT_POLITICS_KEYWORDS.to_string()),
+        );
 
         let config = Self {
             private_key,
@@ -198,7 +151,7 @@ impl Config {
             trading_mode,
             log_file,
             funder_address,
-            trade_markets,
+            politics_keywords,
         };
 
         config.validate()?;
@@ -239,8 +192,8 @@ impl Config {
         if self.aggressive_exit_price <= 0.0 || self.aggressive_exit_price >= 1.0 {
             anyhow::bail!("AGGRESSIVE_EXIT_PRICE must be in (0, 1), got {}", self.aggressive_exit_price);
         }
-        if self.trade_markets.is_empty() {
-            anyhow::bail!("TRADE_MARKETS must list at least one asset (btc, eth, sol)");
+        if self.politics_keywords.is_empty() {
+            anyhow::bail!("POLITICS_KEYWORDS must list at least one keyword (e.g. politics, election, vote)");
         }
         Ok(())
     }
