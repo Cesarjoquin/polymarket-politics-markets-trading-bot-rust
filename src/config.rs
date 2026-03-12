@@ -1,208 +1,260 @@
-//! Configuration loaded from environment.
+use clap::Parser;
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+pub struct Args {
+    /// Run in simulation mode (no real trades)
+    /// Default: simulation mode is enabled (true)
+    #[arg(short, long, default_value_t = true)]
+    pub simulation: bool,
 
-const DEFAULT_CLOB_HOST: &str = "https://clob.polymarket.com";
-const DEFAULT_CHAIN_ID: u64 = 137;
-const DEFAULT_GAMMA_HOST: &str = "https://gamma-api.polymarket.com";
-const DEFAULT_TARGET_UP: &str = "0.45";
-const DEFAULT_SELL_UP: &str = "0.55";
-const DEFAULT_TARGET_DOWN: &str = "0.45";
-const DEFAULT_SELL_DOWN: &str = "0.55";
-const DEFAULT_ORDER_AMOUNT: &str = "5";
-const DEFAULT_CHECK_INTERVAL_MS: u64 = 10_000;
-const DEFAULT_SELL_DELAY_MS: u64 = 10_000;
-const DEFAULT_MIN_SECONDS_TO_ENTER: u64 = 20;
-const DEFAULT_MIN_SECONDS_BEFORE_EXPIRY: u64 = 299;
-const DEFAULT_EXIT_BEFORE_CLOSE_SECONDS: u64 = 20;
-const DEFAULT_AGGRESSIVE_EXIT_PRICE: f64 = 0.4;
-const DEFAULT_POLITICS_KEYWORDS: &str = "politics,election,vote,government,congress,senate";
+    /// Run in production mode (execute real trades)
+    /// This sets simulation to false
+    #[arg(long)]
+    pub no_simulation: bool,
 
-fn parse_politics_keywords(s: String) -> Vec<String> {
-    s.split(',')
-        .map(|p| p.trim().to_lowercase())
-        .filter(|p| !p.is_empty())
-        .collect::<std::collections::HashSet<_>>()
-        .into_iter()
-        .collect()
+    /// Run in backtest mode (use historical price data)
+    /// This overrides simulation and production modes
+    #[arg(long)]
+    pub backtest: bool,
+
+    /// Replay a history file from the history folder (e.g. market_12345_prices.toml).
+    /// Loads historical prices and runs buying/hedge logic (trailing stop) to show what would have happened. No real orders.
+    #[arg(long)]
+    pub history_file: Option<PathBuf>,
+
+    /// Configuration file path
+    #[arg(short, long, default_value = "config.json")]
+    pub config: PathBuf,
 }
 
-#[derive(Clone, Debug)]
+impl Args {
+    /// Get the effective simulation mode
+    /// If --no-simulation is used, it overrides the default
+    /// If --backtest is used, it overrides everything
+    pub fn is_simulation(&self) -> bool {
+        if self.backtest {
+            false // Backtest is not simulation (it's a separate mode)
+        } else if self.no_simulation {
+            false
+        } else {
+            self.simulation
+        }
+    }
+
+    /// Check if we're in backtest mode
+    pub fn is_backtest(&self) -> bool {
+        self.backtest
+    }
+
+    /// Check if we're in history-file replay mode
+    pub fn is_history_replay(&self) -> bool {
+        self.history_file.is_some()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    pub private_key: String,
-    pub clob_host: String,
-    pub chain_id: u64,
-    pub gamma_host: String,
-    pub target_price_up: f64,
-    pub sell_price_up: f64,
-    pub target_price_down: f64,
-    pub sell_price_down: f64,
-    pub order_amount_token: f64,
-    pub check_interval_ms: u64,
-    pub sell_delay_ms: u64,
-    pub min_seconds_to_enter: u64,
-    pub min_seconds_before_expiry: u64,
-    pub exit_before_close_seconds: u64,
-    pub aggressive_exit_price: f64,
-    pub trading_mode: TradingMode,
-    pub log_file: Option<String>,
-    pub funder_address: Option<String>,
-    /// Keywords to match event/market title or question (e.g. politics, election, vote).
-    pub politics_keywords: Vec<String>,
+    pub polymarket: PolymarketConfig,
+    #[serde(default)]
+    pub trading: TradingConfig,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TradingMode {
-    Once,
-    Continuous,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PolymarketConfig {
+    pub gamma_api_url: String,
+    pub clob_api_url: String,
+    pub api_key: Option<String>,
+    pub api_secret: Option<String>,
+    pub api_passphrase: Option<String>,
+    /// Private key for signing orders (optional, but may be required for order placement)
+    /// Format: hex string (with or without 0x prefix) or raw private key
+    pub private_key: Option<String>,
+    /// Proxy wallet address (Polymarket proxy wallet address where your balance is)
+    /// If set, the bot will trade using this proxy wallet instead of the EOA (private key account)
+    /// Format: Ethereum address (with or without 0x prefix)
+    pub proxy_wallet_address: Option<String>,
+    /// Signature type for authentication (optional, defaults to EOA if not set)
+    /// 0 = EOA (Externally Owned Account - private key account)
+    /// 1 = Proxy (Polymarket proxy wallet)
+    /// 2 = GnosisSafe (Gnosis Safe wallet)
+    /// If proxy_wallet_address is set, this should be 1 (Proxy)
+    pub signature_type: Option<u8>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TradingConfig {
+    pub eth_condition_id: Option<String>,
+    pub btc_condition_id: Option<String>,
+    pub solana_condition_id: Option<String>,
+    pub xrp_condition_id: Option<String>,
+    pub check_interval_ms: u64,
+    /// Fixed trade amount in USD for BTC Up token purchase
+    /// Default: 1.0 ($1.00)
+    pub fixed_trade_amount: f64,
+    /// Price threshold to trigger buy (BTC Up token must reach this price)
+    /// Default: 0.9 ($0.90)
+    pub trigger_price: f64,
+    /// Minimum minutes that must have elapsed before buying (after this time, check trigger_price)
+    /// Default: 10 (10 minutes)
+    pub min_elapsed_minutes: u64,
+    /// Price at which to sell the token (sell when price reaches this)
+    /// Default: 0.99 ($0.99)
+    pub sell_price: f64,
+    /// Maximum price to buy at (don't buy if price exceeds this)
+    /// Default: 0.95 ($0.95)
+    /// Buy when: trigger_price <= bid_price <= max_buy_price
+    pub max_buy_price: Option<f64>,
+    /// Stop-loss price - sell if price drops below this (stop-loss protection)
+    /// Default: 0.85 ($0.85) - sell if price drops 5% below purchase price
+    /// If None, stop-loss is disabled
+    pub stop_loss_price: Option<f64>,
+    /// Hedge price - limit buy price for opposite token when buying at $0.9+ (hedging strategy)
+    /// Default: 0.5 ($0.50) - place limit buy order for opposite token at this price
+    /// If None, hedging is disabled
+    /// Strategy: When buying a token at $0.9+, also place a limit buy for the opposite token at $0.5
+    /// This creates a hedge - if market reverses, you'll have both tokens at favorable prices
+    pub hedge_price: Option<f64>,
+    /// Interval for checking market closure and redemption retries after period ends
+    /// Default: 10 (10 seconds) - faster retries for redemption
+    pub market_closure_check_interval_seconds: u64,
+    /// Minimum time remaining in seconds before allowing a buy
+    /// Default: 30 (30 seconds) - don't buy if less than 30 seconds remain
+    /// This prevents buying too close to market close when prices can be volatile
+    pub min_time_remaining_seconds: Option<u64>,
+    /// Enable BTC market trading (trailing bot and others that support it)
+    /// Default: true. If false, trailing bot will not trade BTC (e.g. use with enable_xrp_trading for XRP-only).
+    pub enable_btc_trading: bool,
+    /// Enable ETH market trading
+    /// Default: true (ETH trading enabled)
+    /// If false, only BTC markets will be traded
+    pub enable_eth_trading: bool,
+    /// Enable Solana market trading
+    /// Default: false (Solana trading disabled)
+    /// If true, Solana Up/Down markets will also be traded
+    pub enable_solana_trading: bool,
+    /// Enable XRP market trading
+    /// Default: false (XRP trading disabled)
+    /// If true, XRP Up/Down markets will also be traded
+    pub enable_xrp_trading: bool,
+    /// Dual limit-start bot: fixed limit price for Up/Down orders
+    pub dual_limit_price: Option<f64>,
+    /// Dual limit-start bot: fixed number of shares per order
+    pub dual_limit_shares: Option<f64>,
+    /// Dual limit-start bot: after this many minutes, if only one side filled, begin hedging the unfilled side
+    /// Default: 10 (minutes)
+    pub dual_limit_hedge_after_minutes: Option<u64>,
+    /// Dual limit-start bot: hedge trigger/limit price for buying the unfilled side
+    /// Default: 0.85 ($0.85)
+    pub dual_limit_hedge_price: Option<f64>,
+    /// Dual limit-start bot: early hedge check time (minutes) - check earlier if multiple markets unfilled or uptrending
+    /// Default: 5 (minutes)
+    pub dual_limit_early_hedge_minutes: Option<u64>,
+    /// Dual limit-start bot: minimum trend strength (0.0-1.0) to trigger early hedge
+    /// Default: 0.3
+    pub dual_limit_trend_strength_threshold: Option<f64>,
+    /// Dual limit-start bot: price buffer for early hedge (hedge if price >= hedge_price - buffer and uptrending)
+    /// Default: 0.05 ($0.05)
+    pub dual_limit_trend_price_buffer: Option<f64>,
+    /// Dual limit-start bot: number of price snapshots to track for trend analysis
+    /// Default: 20
+    pub dual_limit_trend_history_size: Option<usize>,
+    /// Dual limit same-size: when false, do not place any limit sell when both 0.45 limit orders fill (hold until closure).
+    /// Used by main_dual_limit_045_same_size; None = use trade's no_sell only.
+    pub dual_filled_limit_sell_enabled: Option<bool>,
+    /// Trailing stop point (dual-limit same-size and trailing bot). Legacy: trigger when unfilled price <= trailing_min + this. In config.json: "trailing_stop_point": 0.02
+    pub trailing_stop_point: Option<f64>,
+    /// Dual limit same-size 2-min hedge: trigger when unfilled price goes UP by this amount over lowest (current >= lowest + this), then buy at current ask. In config.json: "dual_limit_hedge_trailing_stop": 0.03
+    pub dual_limit_hedge_trailing_stop: Option<f64>,
+    /// Sports trailing bot: market slug (e.g. "nfl-team-a-vs-team-b"). When set, bot trades this single market only.
+    pub slug: Option<String>,
+    /// Sports trailing bot: when true, after buying both tokens, start again (trail and buy repeatedly until market ends). When false, buy each side once per market.
+    pub continuous: bool,
+    /// Trailing bot: exact number of shares to buy per token (first and second buy).
+    pub trailing_shares: Option<f64>,
+    /// 5m dual-limit: when true, use trailing-buy mode (no limit orders; monitor token with ask > 0.55, track highest, buy when ask <= highest - trailing_stop; then second trailing for opposite with band from first bought price). When false, use limit-order mode (place Up/Down at dual_limit_price).
+    pub dual_limit_trailing_buy_mode: Option<bool>,
+}
+
+impl Default for PolymarketConfig {
+    fn default() -> Self {
+        Self {
+            gamma_api_url: "https://gamma-api.polymarket.com".to_string(),
+            clob_api_url: "https://clob.polymarket.com".to_string(),
+            api_key: None,
+            api_secret: None,
+            api_passphrase: None,
+            private_key: None,
+            proxy_wallet_address: None,
+            signature_type: None,
+        }
+    }
+}
+
+impl Default for TradingConfig {
+    fn default() -> Self {
+        Self {
+            eth_condition_id: None,
+            btc_condition_id: None,
+            solana_condition_id: None,
+            xrp_condition_id: None,
+            check_interval_ms: 1000,
+            fixed_trade_amount: 1.0,
+            trigger_price: 0.9,
+            min_elapsed_minutes: 10,
+            sell_price: 0.99,
+            max_buy_price: Some(0.95),
+            stop_loss_price: Some(0.85),
+            hedge_price: Some(0.5),
+            market_closure_check_interval_seconds: 10,
+            min_time_remaining_seconds: Some(30),
+            enable_btc_trading: true,
+            enable_eth_trading: true,
+            enable_solana_trading: false,
+            enable_xrp_trading: false,
+            dual_limit_price: None,
+            dual_limit_shares: None,
+            dual_limit_hedge_after_minutes: Some(10),
+            dual_limit_hedge_price: Some(0.85),
+            dual_limit_early_hedge_minutes: Some(5),
+            dual_limit_trend_strength_threshold: Some(0.3),
+            dual_limit_trend_price_buffer: Some(0.05),
+            dual_limit_trend_history_size: Some(60),
+            dual_filled_limit_sell_enabled: None,
+            slug: None,
+            continuous: false,
+            trailing_stop_point: Some(0.03),
+            dual_limit_hedge_trailing_stop: Some(0.03),
+            trailing_shares: Some(10.0),
+            dual_limit_trailing_buy_mode: Some(false),
+        }
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            polymarket: PolymarketConfig::default(),
+            trading: TradingConfig::default(),
+        }
+    }
 }
 
 impl Config {
-    pub fn from_env() -> Result<Self> {
-        dotenvy::dotenv().ok();
-
-        let private_key = std::env::var("PRIVATE_KEY")
-            .context("PRIVATE_KEY is required")?;
-
-        let clob_host = std::env::var("CLOB_HOST").unwrap_or_else(|_| DEFAULT_CLOB_HOST.to_string());
-        let chain_id: u64 = std::env::var("CHAIN_ID")
-            .unwrap_or_else(|_| DEFAULT_CHAIN_ID.to_string())
-            .parse()
-            .context("CHAIN_ID must be a positive integer")?;
-        let gamma_host = std::env::var("GAMMA_HOST").unwrap_or_else(|_| DEFAULT_GAMMA_HOST.to_string());
-
-        let target_price_up: f64 = std::env::var("TARGET_PRICE_UP")
-            .or_else(|_| std::env::var("TARGET_PRICE"))
-            .unwrap_or_else(|_| DEFAULT_TARGET_UP.to_string())
-            .parse()
-            .context("TARGET_PRICE_UP must be a number in (0,1)")?;
-        let sell_price_up: f64 = std::env::var("SELL_PRICE_UP")
-            .or_else(|_| std::env::var("SELL_PRICE"))
-            .unwrap_or_else(|_| DEFAULT_SELL_UP.to_string())
-            .parse()
-            .context("SELL_PRICE_UP must be a number in (0,1)")?;
-        let target_price_down: f64 = std::env::var("TARGET_PRICE_DOWN")
-            .or_else(|_| std::env::var("TARGET_PRICE"))
-            .unwrap_or_else(|_| DEFAULT_TARGET_DOWN.to_string())
-            .parse()
-            .context("TARGET_PRICE_DOWN must be a number in (0,1)")?;
-        let sell_price_down: f64 = std::env::var("SELL_PRICE_DOWN")
-            .or_else(|_| std::env::var("SELL_PRICE"))
-            .unwrap_or_else(|_| DEFAULT_SELL_DOWN.to_string())
-            .parse()
-            .context("SELL_PRICE_DOWN must be a number in (0,1)")?;
-
-        let order_amount_token: f64 = std::env::var("ORDER_AMOUNT_TOKEN")
-            .unwrap_or_else(|_| DEFAULT_ORDER_AMOUNT.to_string())
-            .parse()
-            .context("ORDER_AMOUNT_TOKEN must be a number >= 5")?;
-        let check_interval_ms: u64 = std::env::var("CHECK_INTERVAL")
-            .unwrap_or_else(|_| DEFAULT_CHECK_INTERVAL_MS.to_string())
-            .parse()
-            .context("CHECK_INTERVAL must be a positive integer (ms)")?;
-        let sell_delay_ms: u64 = std::env::var("SELL_DELAY_MS")
-            .unwrap_or_else(|_| DEFAULT_SELL_DELAY_MS.to_string())
-            .parse()
-            .context("SELL_DELAY_MS must be a non-negative integer")?;
-        let min_seconds_to_enter: u64 = std::env::var("MIN_SECONDS_TO_ENTER")
-            .unwrap_or_else(|_| DEFAULT_MIN_SECONDS_TO_ENTER.to_string())
-            .parse()
-            .unwrap_or(DEFAULT_MIN_SECONDS_TO_ENTER);
-        let min_seconds_before_expiry: u64 = std::env::var("MIN_SECONDS_BEFORE_EXPIRY")
-            .unwrap_or_else(|_| DEFAULT_MIN_SECONDS_BEFORE_EXPIRY.to_string())
-            .parse()
-            .unwrap_or(DEFAULT_MIN_SECONDS_BEFORE_EXPIRY);
-        let exit_before_close_seconds: u64 = std::env::var("EXIT_BEFORE_CLOSE_SECONDS")
-            .unwrap_or_else(|_| DEFAULT_EXIT_BEFORE_CLOSE_SECONDS.to_string())
-            .parse()
-            .unwrap_or(DEFAULT_EXIT_BEFORE_CLOSE_SECONDS);
-        let aggressive_exit_price: f64 = std::env::var("AGGRESSIVE_EXIT_PRICE")
-            .unwrap_or_else(|_| DEFAULT_AGGRESSIVE_EXIT_PRICE.to_string())
-            .parse()
-            .unwrap_or(DEFAULT_AGGRESSIVE_EXIT_PRICE);
-
-        let trading_mode = match std::env::var("TRADING_MODE").unwrap_or_else(|_| "continuous".into()).to_lowercase().as_str() {
-            "once" => TradingMode::Once,
-            _ => TradingMode::Continuous,
-        };
-        let log_file = std::env::var("LOG_FILE").ok();
-        let funder_address = std::env::var("FUNDER_ADDRESS").ok();
-
-        let politics_keywords = parse_politics_keywords(
-            std::env::var("POLITICS_KEYWORDS").unwrap_or_else(|_| DEFAULT_POLITICS_KEYWORDS.to_string()),
-        );
-
-        let config = Self {
-            private_key,
-            clob_host,
-            chain_id,
-            gamma_host,
-            target_price_up,
-            sell_price_up,
-            target_price_down,
-            sell_price_down,
-            order_amount_token,
-            check_interval_ms,
-            sell_delay_ms,
-            min_seconds_to_enter,
-            min_seconds_before_expiry,
-            exit_before_close_seconds,
-            aggressive_exit_price,
-            trading_mode,
-            log_file,
-            funder_address,
-            politics_keywords,
-        };
-
-        config.validate()?;
-        Ok(config)
-    }
-
-    fn validate(&self) -> Result<()> {
-        let in_01 = |p: f64, name: &str| {
-            if !p.is_finite() || p <= 0.0 || p >= 1.0 {
-                anyhow::bail!("{} must be in (0, 1), got {}", name, p);
-            }
-            Ok(())
-        };
-        in_01(self.target_price_up, "TARGET_PRICE_UP")?;
-        in_01(self.sell_price_up, "SELL_PRICE_UP")?;
-        in_01(self.target_price_down, "TARGET_PRICE_DOWN")?;
-        in_01(self.sell_price_down, "SELL_PRICE_DOWN")?;
-        if self.target_price_up >= self.sell_price_up {
-            anyhow::bail!(
-                "TARGET_PRICE_UP ({}) must be strictly less than SELL_PRICE_UP ({})",
-                self.target_price_up,
-                self.sell_price_up
-            );
+    pub fn load(path: &PathBuf) -> anyhow::Result<Self> {
+        if path.exists() {
+            let content = std::fs::read_to_string(path)?;
+            Ok(serde_json::from_str(&content)?)
+        } else {
+            let config = Config::default();
+            let content = serde_json::to_string_pretty(&config)?;
+            std::fs::write(path, content)?;
+            Ok(config)
         }
-        if self.target_price_down >= self.sell_price_down {
-            anyhow::bail!(
-                "TARGET_PRICE_DOWN ({}) must be strictly less than SELL_PRICE_DOWN ({})",
-                self.target_price_down,
-                self.sell_price_down
-            );
-        }
-        if self.order_amount_token < 5.0 {
-            anyhow::bail!("ORDER_AMOUNT_TOKEN must be >= 5 (min share size), got {}", self.order_amount_token);
-        }
-        if self.check_interval_ms < 500 {
-            anyhow::bail!("CHECK_INTERVAL must be >= 500 ms, got {}", self.check_interval_ms);
-        }
-        if self.aggressive_exit_price <= 0.0 || self.aggressive_exit_price >= 1.0 {
-            anyhow::bail!("AGGRESSIVE_EXIT_PRICE must be in (0, 1), got {}", self.aggressive_exit_price);
-        }
-        if self.politics_keywords.is_empty() {
-            anyhow::bail!("POLITICS_KEYWORDS must list at least one keyword (e.g. politics, election, vote)");
-        }
-        Ok(())
-    }
-
-    pub fn stop_loss_price_up(&self) -> f64 {
-        self.target_price_up * 0.67
-    }
-
-    pub fn stop_loss_price_down(&self) -> f64 {
-        self.target_price_down * 0.67
     }
 }
+
