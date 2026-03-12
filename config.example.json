@@ -10,7 +10,7 @@
     "signature_type": 2
   },
   "trading": {
-    "slug": "your-sports-market-slug",
+    "slug": "politics-market-slug",
     "continuous": false,
     "check_interval_ms": 1000,
     "trailing_stop_point": 0.03,
