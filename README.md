@@ -19,7 +19,7 @@ It:
 ## Build
 
 ```bash
-cd polymarket-politics-markets-trading-bot
+cd polymarket-politics-markets-trading-bot-rust
 cargo build --release
 ```
 
