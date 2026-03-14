@@ -41,7 +41,27 @@ import { deleteMetafields } from "./deleteMetafields.js";
 import { manageTags } from "./manageTags.js";
 import { setInventoryQuantities } from "./setInventoryQuantities.js";
 
+// Configuration & discovery tools
+import { getShopInfo } from "./getShopInfo.js";
+import { getMetafieldDefinitions } from "./getMetafieldDefinitions.js";
+import { getLocations } from "./getLocations.js";
+import { getMarkets } from "./getMarkets.js";
+import { getCollections } from "./getCollections.js";
+
+// Enhanced order & fulfillment tools
+import { getOrderTransactions } from "./getOrderTransactions.js";
+import { getFulfillmentOrders } from "./getFulfillmentOrders.js";
+import { getOrderRefundDetails } from "./getOrderRefundDetails.js";
+import { getCollectionById } from "./getCollectionById.js";
+
+// Inventory & pricing read tools
+import { getInventoryLevels } from "./getInventoryLevels.js";
+import { getInventoryItems } from "./getInventoryItems.js";
+import { getPriceLists } from "./getPriceLists.js";
+import { getProductVariantsDetailed } from "./getProductVariantsDetailed.js";
+
 export const tools: ShopifyTool[] = [
+  // Products (8)
   getProducts,
   getProductById,
   createProduct,
@@ -50,6 +70,7 @@ export const tools: ShopifyTool[] = [
   manageProductVariants,
   deleteProductVariants,
   manageProductOptions,
+  // Orders (10)
   getOrders,
   getOrderById,
   updateOrder,
@@ -60,6 +81,7 @@ export const tools: ShopifyTool[] = [
   orderMarkAsPaid,
   createFulfillment,
   createRefund,
+  // Customers (8)
   getCustomers,
   getCustomerById,
   getCustomerOrders,
@@ -68,9 +90,27 @@ export const tools: ShopifyTool[] = [
   deleteCustomer,
   mergeCustomers,
   manageCustomerAddress,
+  // Metafields (3)
   getMetafields,
   setMetafields,
   deleteMetafields,
+  // Convenience (2)
   manageTags,
   setInventoryQuantities,
+  // Configuration & discovery (5)
+  getShopInfo,
+  getMetafieldDefinitions,
+  getLocations,
+  getMarkets,
+  getCollections,
+  // Enhanced order & fulfillment (4)
+  getOrderTransactions,
+  getFulfillmentOrders,
+  getOrderRefundDetails,
+  getCollectionById,
+  // Inventory & pricing reads (4)
+  getInventoryLevels,
+  getInventoryItems,
+  getPriceLists,
+  getProductVariantsDetailed,
 ];
