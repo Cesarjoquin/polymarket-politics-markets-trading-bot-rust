@@ -65,9 +65,17 @@ const getProductVariantsDetailed = {
                     name
                     value
                   }
-                  image {
-                    url
-                    altText
+                  media(first: 1) {
+                    edges {
+                      node {
+                        ... on MediaImage {
+                          image {
+                            url
+                            altText
+                          }
+                        }
+                      }
+                    }
                   }
                   inventoryItem {
                     id
@@ -115,12 +123,23 @@ const getProductVariantsDetailed = {
       }
 
       const variants = edgesToNodes(data.product.variants).map(
-        (variant: any) => ({
-          ...variant,
-          metafields: variant.metafields
-            ? edgesToNodes(variant.metafields)
-            : [],
-        }),
+        (variant: any) => {
+          const mediaNodes = variant.media
+            ? edgesToNodes(variant.media)
+            : [];
+          const firstImage = mediaNodes.find(
+            (m: any) => m.image,
+          ) as any;
+          const image = firstImage?.image ?? null;
+          delete variant.media;
+          return {
+            ...variant,
+            image,
+            metafields: variant.metafields
+              ? edgesToNodes(variant.metafields)
+              : [],
+          };
+        },
       );
 
       return {
