@@ -1,6 +1,7 @@
 import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
+import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
 
 // Will be initialized in index.ts
 let shopifyClient: GraphQLClient;
@@ -31,6 +32,8 @@ const UpdateOrderInputSchema = z.object({
       })
     )
     .optional(),
+  phone: z.string().optional(),
+  poNumber: z.string().optional(),
   shippingAddress: z
     .object({
       address1: z.string().optional(),
@@ -125,14 +128,7 @@ const updateOrder = {
         };
       };
 
-      // If there are user errors, throw an error
-      if (data.orderUpdate.userErrors.length > 0) {
-        throw new Error(
-          `Failed to update order: ${data.orderUpdate.userErrors
-            .map((e) => `${e.field}: ${e.message}`)
-            .join(", ")}`
-        );
-      }
+      checkUserErrors(data.orderUpdate.userErrors, "update order");
 
       // Format and return the updated order
       const order = data.orderUpdate.order;
@@ -152,12 +148,7 @@ const updateOrder = {
         }
       };
     } catch (error) {
-      console.error("Error updating order:", error);
-      throw new Error(
-        `Failed to update order: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+      handleToolError("update order", error);
     }
   }
 };

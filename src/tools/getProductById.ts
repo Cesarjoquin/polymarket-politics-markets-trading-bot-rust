@@ -1,6 +1,7 @@
 import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
+import { handleToolError } from "../lib/toolUtils.js";
 
 // Input schema for getProductById
 const GetProductByIdInputSchema = z.object({
@@ -47,14 +48,18 @@ const getProductById = {
                 currencyCode
               }
             }
-            images(first: 5) {
+            media(first: 5) {
               edges {
                 node {
-                  id
-                  url
-                  altText
-                  width
-                  height
+                  ... on MediaImage {
+                    id
+                    image {
+                      url
+                      altText
+                      width
+                      height
+                    }
+                  }
                 }
               }
             }
@@ -83,6 +88,21 @@ const getProductById = {
             }
             tags
             vendor
+            productType
+            descriptionHtml
+            seo {
+              title
+              description
+            }
+            options {
+              id
+              name
+              position
+              optionValues {
+                id
+                name
+              }
+            }
           }
         }
       `;
@@ -112,14 +132,16 @@ const getProductById = {
         options: variantEdge.node.selectedOptions
       }));
 
-      // Format images
-      const images = product.images.edges.map((imageEdge: any) => ({
-        id: imageEdge.node.id,
-        url: imageEdge.node.url,
-        altText: imageEdge.node.altText,
-        width: imageEdge.node.width,
-        height: imageEdge.node.height
-      }));
+      // Format images from media
+      const images = product.media.edges
+        .filter((mediaEdge: any) => mediaEdge.node.image)
+        .map((mediaEdge: any) => ({
+          id: mediaEdge.node.id,
+          url: mediaEdge.node.image.url,
+          altText: mediaEdge.node.image.altText,
+          width: mediaEdge.node.image.width,
+          height: mediaEdge.node.image.height
+        }));
 
       // Format collections
       const collections = product.collections.edges.map(
@@ -152,17 +174,16 @@ const getProductById = {
         variants,
         collections,
         tags: product.tags,
-        vendor: product.vendor
+        vendor: product.vendor,
+        productType: product.productType,
+        descriptionHtml: product.descriptionHtml,
+        seo: product.seo,
+        options: product.options
       };
 
       return { product: formattedProduct };
     } catch (error) {
-      console.error("Error fetching product by ID:", error);
-      throw new Error(
-        `Failed to fetch product: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+      handleToolError("fetch product", error);
     }
   }
 };

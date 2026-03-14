@@ -1,6 +1,7 @@
 import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
+import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
 
 // Input schema for deleteProduct
 const DeleteProductInputSchema = z.object({
@@ -44,22 +45,11 @@ const deleteProduct = {
         };
       };
 
-      if (data.productDelete.userErrors.length > 0) {
-        throw new Error(
-          `Failed to delete product: ${data.productDelete.userErrors
-            .map((e) => `${e.field}: ${e.message}`)
-            .join(", ")}`
-        );
-      }
+      checkUserErrors(data.productDelete.userErrors, "delete product");
 
       return { deletedProductId: data.productDelete.deletedProductId };
     } catch (error) {
-      console.error("Error deleting product:", error);
-      throw new Error(
-        `Failed to delete product: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+      handleToolError("delete product", error);
     }
   },
 };

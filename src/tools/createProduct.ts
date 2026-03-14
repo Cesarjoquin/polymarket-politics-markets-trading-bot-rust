@@ -2,6 +2,7 @@
 import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
+import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
 
 // Input schema for creating a product
 const CreateProductInputSchema = z.object({
@@ -65,8 +66,8 @@ const createProduct = {
   execute: async (input: CreateProductInput) => {
     try {
       const query = gql`
-        mutation productCreate($product: ProductCreateInput!, $media: [CreateMediaInput!]) {
-          productCreate(product: $product, media: $media) {
+        mutation productCreate($product: ProductCreateInput!) {
+          productCreate(product: $product) {
             product {
               id
               title
@@ -104,14 +105,9 @@ const createProduct = {
         }
       `;
 
-      const { media, ...productInput } = input as CreateProductInput & { media?: any[] };
-
       const variables: Record<string, any> = {
-        product: productInput,
+        product: input,
       };
-      if (media?.length) {
-        variables.media = media;
-      }
 
       const data = (await shopifyClient.request(query, variables)) as {
         productCreate: {
@@ -123,14 +119,7 @@ const createProduct = {
         };
       };
 
-      // If there are user errors, throw an error
-      if (data.productCreate.userErrors.length > 0) {
-        throw new Error(
-          `Failed to create product: ${data.productCreate.userErrors
-            .map((e) => `${e.field}: ${e.message}`)
-            .join(", ")}`
-        );
-      }
+      checkUserErrors(data.productCreate.userErrors, "create product");
 
       const product = data.productCreate.product;
 
@@ -150,12 +139,7 @@ const createProduct = {
         },
       };
     } catch (error) {
-      console.error("Error creating product:", error);
-      throw new Error(
-        `Failed to create product: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+      handleToolError("create product", error);
     }
   },
 };

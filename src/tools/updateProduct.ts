@@ -1,6 +1,7 @@
 import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
+import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
 
 // Input schema for updateProduct
 const UpdateProductInputSchema = z.object({
@@ -54,8 +55,8 @@ const updateProduct = {
       const { id, ...productFields } = input;
 
       const query = gql`
-        mutation productUpdate($input: ProductInput!) {
-          productUpdate(input: $input) {
+        mutation productUpdate($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
             product {
               id
               title
@@ -103,7 +104,7 @@ const updateProduct = {
       `;
 
       const variables = {
-        input: {
+        product: {
           id,
           ...productFields,
         },
@@ -116,13 +117,7 @@ const updateProduct = {
         };
       };
 
-      if (data.productUpdate.userErrors.length > 0) {
-        throw new Error(
-          `Failed to update product: ${data.productUpdate.userErrors
-            .map((e) => `${e.field}: ${e.message}`)
-            .join(", ")}`
-        );
-      }
+      checkUserErrors(data.productUpdate.userErrors, "update product");
 
       const product = data.productUpdate.product;
 
@@ -148,12 +143,7 @@ const updateProduct = {
         },
       };
     } catch (error) {
-      console.error("Error updating product:", error);
-      throw new Error(
-        `Failed to update product: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+      handleToolError("update product", error);
     }
   },
 };
