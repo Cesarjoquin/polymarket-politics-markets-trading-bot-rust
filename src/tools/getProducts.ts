@@ -1,11 +1,20 @@
 import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
+import { handleToolError } from "../lib/toolUtils.js";
 
 // Input schema for getProducts
 const GetProductsInputSchema = z.object({
-  searchTitle: z.string().optional(),
-  limit: z.number().default(10)
+  searchTitle: z.string().optional().describe("Search by title (convenience filter, wraps in title:*...*). Use 'query' for advanced filtering."),
+  limit: z.number().default(10),
+  after: z.string().optional().describe("Cursor for forward pagination"),
+  before: z.string().optional().describe("Cursor for backward pagination"),
+  sortKey: z.enum([
+    "CREATED_AT", "ID", "INVENTORY_TOTAL", "PRODUCT_TYPE",
+    "PUBLISHED_AT", "RELEVANCE", "TITLE", "UPDATED_AT", "VENDOR"
+  ]).optional().describe("Sort key for products"),
+  reverse: z.boolean().optional().describe("Reverse the sort order"),
+  query: z.string().optional().describe("Raw query string for advanced filtering (e.g. 'status:active vendor:Nike tag:sale')")
 });
 
 type GetProductsInput = z.infer<typeof GetProductsInputSchema>;
@@ -25,12 +34,21 @@ const getProducts = {
 
   execute: async (input: GetProductsInput) => {
     try {
-      const { searchTitle, limit } = input;
+      const { searchTitle, limit, after, before, sortKey, reverse, query: rawQuery } = input;
 
-      // Create query based on whether we're searching by title or not
+      // Build query string from convenience filters and raw query
+      const queryParts: string[] = [];
+      if (searchTitle) {
+        queryParts.push(`title:*${searchTitle}*`);
+      }
+      if (rawQuery) {
+        queryParts.push(rawQuery);
+      }
+      const queryFilter = queryParts.join(" ") || undefined;
+
       const query = gql`
-        query GetProducts($first: Int!, $query: String) {
-          products(first: $first, query: $query) {
+        query GetProducts($first: Int!, $query: String, $after: String, $before: String, $sortKey: ProductSortKeys, $reverse: Boolean) {
+          products(first: $first, query: $query, after: $after, before: $before, sortKey: $sortKey, reverse: $reverse) {
             edges {
               node {
                 id
@@ -51,11 +69,16 @@ const getProducts = {
                     currencyCode
                   }
                 }
-                images(first: 1) {
+                media(first: 1) {
                   edges {
                     node {
-                      url
-                      altText
+                      ... on MediaImage {
+                        id
+                        image {
+                          url
+                          altText
+                        }
+                      }
                     }
                   }
                 }
@@ -72,13 +95,23 @@ const getProducts = {
                 }
               }
             }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
+            }
           }
         }
       `;
 
       const variables = {
         first: limit,
-        query: searchTitle ? `title:*${searchTitle}*` : undefined
+        query: queryFilter,
+        ...(after && { after }),
+        ...(before && { before }),
+        ...(sortKey && { sortKey }),
+        ...(reverse !== undefined && { reverse })
       };
 
       const data = (await shopifyClient.request(query, variables)) as {
@@ -99,10 +132,8 @@ const getProducts = {
         }));
 
         // Get first image if it exists
-        const imageUrl =
-          product.images.edges.length > 0
-            ? product.images.edges[0].node.url
-            : null;
+        const firstMedia = product.media.edges.find((e: any) => e.node.image);
+        const imageUrl = firstMedia?.node.image?.url || null;
 
         return {
           id: product.id,
@@ -128,14 +159,12 @@ const getProducts = {
         };
       });
 
-      return { products };
+      return {
+        products,
+        pageInfo: data.products.pageInfo
+      };
     } catch (error) {
-      console.error("Error fetching products:", error);
-      throw new Error(
-        `Failed to fetch products: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+      handleToolError("fetch products", error);
     }
   }
 };

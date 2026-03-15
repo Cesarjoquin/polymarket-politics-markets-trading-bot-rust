@@ -1,11 +1,16 @@
 import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
+import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
 
 // Input schema for manageProductOptions
 const ManageProductOptionsInputSchema = z.object({
   productId: z.string().min(1).describe("Shopify product GID"),
   action: z.enum(["create", "update", "delete"]),
+  variantStrategy: z
+    .enum(["LEAVE_AS_IS", "CREATE"])
+    .optional()
+    .describe("Strategy for variant creation when adding options. LEAVE_AS_IS (default) keeps existing variants, CREATE generates new variant combinations."),
   // For create
   options: z
     .array(
@@ -102,11 +107,12 @@ const manageProductOptions = {
           mutation productOptionsCreate(
             $productId: ID!
             $options: [OptionCreateInput!]!
+            $variantStrategy: ProductOptionCreateVariantStrategy
           ) {
             productOptionsCreate(
               productId: $productId
               options: $options
-              variantStrategy: LEAVE_AS_IS
+              variantStrategy: $variantStrategy
             ) {
               product {
                 ...ProductOptionsFields
@@ -132,15 +138,10 @@ const manageProductOptions = {
         const data = (await shopifyClient.request(query, {
           productId,
           options,
+          variantStrategy: input.variantStrategy || "LEAVE_AS_IS",
         })) as { productOptionsCreate: MutationResponse };
 
-        if (data.productOptionsCreate.userErrors.length > 0) {
-          throw new Error(
-            `Failed to create options: ${data.productOptionsCreate.userErrors
-              .map((e) => `${e.field}: ${e.message}`)
-              .join(", ")}`
-          );
-        }
+        checkUserErrors(data.productOptionsCreate.userErrors, "create options");
 
         return formatProductResponse(data.productOptionsCreate.product);
       }
@@ -195,13 +196,7 @@ const manageProductOptions = {
           variables
         )) as { productOptionUpdate: MutationResponse };
 
-        if (data.productOptionUpdate.userErrors.length > 0) {
-          throw new Error(
-            `Failed to update option: ${data.productOptionUpdate.userErrors
-              .map((e) => `${e.field}: ${e.message}`)
-              .join(", ")}`
-          );
-        }
+        checkUserErrors(data.productOptionUpdate.userErrors, "update option");
 
         return formatProductResponse(data.productOptionUpdate.product);
       }
@@ -238,25 +233,14 @@ const manageProductOptions = {
           options: input.optionIds,
         })) as { productOptionsDelete: MutationResponse };
 
-        if (data.productOptionsDelete.userErrors.length > 0) {
-          throw new Error(
-            `Failed to delete options: ${data.productOptionsDelete.userErrors
-              .map((e) => `${e.field}: ${e.message}`)
-              .join(", ")}`
-          );
-        }
+        checkUserErrors(data.productOptionsDelete.userErrors, "delete options");
 
         return formatProductResponse(data.productOptionsDelete.product);
       }
 
       throw new Error(`Unknown action: ${action}`);
     } catch (error) {
-      console.error("Error managing product options:", error);
-      throw new Error(
-        `Failed to manage product options: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+      handleToolError("manage product options", error);
     }
   },
 };

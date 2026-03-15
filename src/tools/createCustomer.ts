@@ -3,61 +3,60 @@ import { gql } from "graphql-request";
 import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
 
-// Input schema for updating a customer
-const UpdateCustomerInputSchema = z.object({
-  id: z.string().regex(/^\d+$/, "Customer ID must be numeric"),
+// Input schema for creating a customer
+const CreateCustomerInputSchema = z.object({
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   email: z.string().email().optional(),
   phone: z.string().optional(),
   tags: z.array(z.string()).optional(),
   note: z.string().optional(),
-  emailMarketingConsent: z
-    .object({
-      marketingState: z.enum(["NOT_SUBSCRIBED", "SUBSCRIBED", "UNSUBSCRIBED", "PENDING"]),
-      consentUpdatedAt: z.string().optional(),
-      marketingOptInLevel: z.enum(["SINGLE_OPT_IN", "CONFIRMED_OPT_IN", "UNKNOWN"]).optional()
-    })
-    .optional(),
   taxExempt: z.boolean().optional(),
   metafields: z
     .array(
       z.object({
-        id: z.string().optional(),
-        namespace: z.string().optional(),
-        key: z.string().optional(),
+        namespace: z.string(),
+        key: z.string(),
         value: z.string(),
         type: z.string().optional()
+      })
+    )
+    .optional(),
+  addresses: z
+    .array(
+      z.object({
+        address1: z.string().optional(),
+        address2: z.string().optional(),
+        city: z.string().optional(),
+        provinceCode: z.string().optional(),
+        zip: z.string().optional(),
+        country: z.string().optional(),
+        phone: z.string().optional()
       })
     )
     .optional()
 });
 
-type UpdateCustomerInput = z.infer<typeof UpdateCustomerInputSchema>;
+type CreateCustomerInput = z.infer<typeof CreateCustomerInputSchema>;
 
 // Will be initialized in index.ts
 let shopifyClient: GraphQLClient;
 
-const updateCustomer = {
-  name: "update-customer",
-  description: "Update a customer's information",
-  schema: UpdateCustomerInputSchema,
+const createCustomer = {
+  name: "create-customer",
+  description: "Create a new customer",
+  schema: CreateCustomerInputSchema,
 
   // Add initialize method to set up the GraphQL client
   initialize(client: GraphQLClient) {
     shopifyClient = client;
   },
 
-  execute: async (input: UpdateCustomerInput) => {
+  execute: async (input: CreateCustomerInput) => {
     try {
-      const { id, ...customerFields } = input;
-
-      // Convert numeric ID to GID format
-      const customerGid = `gid://shopify/Customer/${id}`;
-
       const query = gql`
-        mutation customerUpdate($input: CustomerInput!) {
-          customerUpdate(input: $input) {
+        mutation customerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
             customer {
               id
               firstName
@@ -71,10 +70,25 @@ const updateCustomer = {
               tags
               note
               taxExempt
-              emailMarketingConsent {
-                marketingState
-                consentUpdatedAt
-                marketingOptInLevel
+              createdAt
+              updatedAt
+              defaultAddress {
+                address1
+                address2
+                city
+                provinceCode
+                zip
+                country
+                phone
+              }
+              addresses {
+                address1
+                address2
+                city
+                provinceCode
+                zip
+                country
+                phone
               }
               metafields(first: 10) {
                 edges {
@@ -97,13 +111,12 @@ const updateCustomer = {
 
       const variables = {
         input: {
-          id: customerGid,
-          ...customerFields
+          ...input
         }
       };
 
       const data = (await shopifyClient.request(query, variables)) as {
-        customerUpdate: {
+        customerCreate: {
           customer: any;
           userErrors: Array<{
             field: string;
@@ -112,10 +125,10 @@ const updateCustomer = {
         };
       };
 
-      checkUserErrors(data.customerUpdate.userErrors, "update customer");
+      checkUserErrors(data.customerCreate.userErrors, "create customer");
 
-      // Format and return the updated customer
-      const customer = data.customerUpdate.customer;
+      // Format and return the created customer
+      const customer = data.customerCreate.customer;
 
       // Format metafields if they exist
       const metafields =
@@ -131,14 +144,17 @@ const updateCustomer = {
           tags: customer.tags,
           note: customer.note,
           taxExempt: customer.taxExempt,
-          emailMarketingConsent: customer.emailMarketingConsent,
+          createdAt: customer.createdAt,
+          updatedAt: customer.updatedAt,
+          defaultAddress: customer.defaultAddress,
+          addresses: customer.addresses,
           metafields
         }
       };
     } catch (error) {
-      handleToolError("update customer", error);
+      handleToolError("create customer", error);
     }
   }
 };
 
-export { updateCustomer };
+export { createCustomer };

@@ -1,6 +1,7 @@
 import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
+import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
 
 // Input schema for deleteProductVariants
 const DeleteProductVariantsInputSchema = z.object({
@@ -71,13 +72,7 @@ const deleteProductVariants = {
         };
       };
 
-      if (data.productVariantsBulkDelete.userErrors.length > 0) {
-        throw new Error(
-          `Failed to delete variants: ${data.productVariantsBulkDelete.userErrors
-            .map((e) => `${e.field}: ${e.message}`)
-            .join(", ")}`
-        );
-      }
+      checkUserErrors(data.productVariantsBulkDelete.userErrors, "delete variants");
 
       const product = data.productVariantsBulkDelete.product;
 
@@ -95,12 +90,7 @@ const deleteProductVariants = {
         },
       };
     } catch (error) {
-      console.error("Error deleting product variants:", error);
-      throw new Error(
-        `Failed to delete product variants: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+      handleToolError("delete product variants", error);
     }
   },
 };

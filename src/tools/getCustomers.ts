@@ -1,11 +1,19 @@
 import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
+import { handleToolError } from "../lib/toolUtils.js";
 
 // Input schema for getCustomers
 const GetCustomersInputSchema = z.object({
-  searchQuery: z.string().optional(),
-  limit: z.number().default(10)
+  searchQuery: z.string().optional().describe("Freetext search or Shopify query syntax (e.g. 'country:US tag:vip orders_count:>5')"),
+  limit: z.number().default(10),
+  after: z.string().optional().describe("Cursor for forward pagination"),
+  before: z.string().optional().describe("Cursor for backward pagination"),
+  sortKey: z.enum([
+    "CREATED_AT", "ID", "LAST_UPDATE", "LOCATION", "NAME",
+    "ORDERS_COUNT", "RELEVANCE", "TOTAL_SPENT", "UPDATED_AT"
+  ]).optional().describe("Sort key for customers"),
+  reverse: z.boolean().optional().describe("Reverse the sort order")
 });
 
 type GetCustomersInput = z.infer<typeof GetCustomersInputSchema>;
@@ -25,18 +33,22 @@ const getCustomers = {
 
   execute: async (input: GetCustomersInput) => {
     try {
-      const { searchQuery, limit } = input;
+      const { searchQuery, limit, after, before, sortKey, reverse } = input;
 
       const query = gql`
-        query GetCustomers($first: Int!, $query: String) {
-          customers(first: $first, query: $query) {
+        query GetCustomers($first: Int!, $query: String, $after: String, $before: String, $sortKey: CustomerSortKeys, $reverse: Boolean) {
+          customers(first: $first, query: $query, after: $after, before: $before, sortKey: $sortKey, reverse: $reverse) {
             edges {
               node {
                 id
                 firstName
                 lastName
-                email
-                phone
+                defaultEmailAddress {
+                  emailAddress
+                }
+                defaultPhoneNumber {
+                  phoneNumber
+                }
                 createdAt
                 updatedAt
                 tags
@@ -65,13 +77,23 @@ const getCustomers = {
                 numberOfOrders
               }
             }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
+            }
           }
         }
       `;
 
       const variables = {
         first: limit,
-        query: searchQuery
+        query: searchQuery,
+        ...(after && { after }),
+        ...(before && { before }),
+        ...(sortKey && { sortKey }),
+        ...(reverse !== undefined && { reverse })
       };
 
       const data = (await shopifyClient.request(query, variables)) as {
@@ -86,8 +108,8 @@ const getCustomers = {
           id: customer.id,
           firstName: customer.firstName,
           lastName: customer.lastName,
-          email: customer.email,
-          phone: customer.phone,
+          email: customer.defaultEmailAddress?.emailAddress || null,
+          phone: customer.defaultPhoneNumber?.phoneNumber || null,
           createdAt: customer.createdAt,
           updatedAt: customer.updatedAt,
           tags: customer.tags,
@@ -98,14 +120,12 @@ const getCustomers = {
         };
       });
 
-      return { customers };
+      return {
+        customers,
+        pageInfo: data.customers.pageInfo
+      };
     } catch (error) {
-      console.error("Error fetching customers:", error);
-      throw new Error(
-        `Failed to fetch customers: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+      handleToolError("fetch customers", error);
     }
   }
 };
