@@ -36,6 +36,8 @@ const getCustomers = {
       const { searchQuery, limit, after, before, sortKey, reverse } = input;
 
       const query = gql`
+        #graphql
+
         query GetCustomers($first: Int!, $query: String, $after: String, $before: String, $sortKey: CustomerSortKeys, $reverse: Boolean) {
           customers(first: $first, query: $query, after: $after, before: $before, sortKey: $sortKey, reverse: $reverse) {
             edges {

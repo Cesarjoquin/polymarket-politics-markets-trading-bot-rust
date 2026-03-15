@@ -53,6 +53,8 @@ const getMetafieldDefinitions = {
   execute: async (input: GetMetafieldDefinitionsInput) => {
     try {
       const query = gql`
+        #graphql
+
         query GetMetafieldDefinitions(
           $ownerType: MetafieldOwnerType!
           $first: Int!

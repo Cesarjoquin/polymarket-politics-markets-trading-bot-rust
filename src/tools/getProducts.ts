@@ -47,6 +47,8 @@ const getProducts = {
       const queryFilter = queryParts.join(" ") || undefined;
 
       const query = gql`
+        #graphql
+
         query GetProducts($first: Int!, $query: String, $after: String, $before: String, $sortKey: ProductSortKeys, $reverse: Boolean) {
           products(first: $first, query: $query, after: $after, before: $before, sortKey: $sortKey, reverse: $reverse) {
             edges {

@@ -39,6 +39,8 @@ const getOrderById = {
         // Short number or #number — treat as order name, query by name
         const orderName = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
         const nameQuery = gql`
+          #graphql
+
           query FindOrderByName($query: String!) {
             orders(first: 1, query: $query) {
               edges {
@@ -66,6 +68,8 @@ const getOrderById = {
       }
 
       const query = gql`
+        #graphql
+
         query GetOrderById($id: ID!) {
           order(id: $id) {
             id

@@ -49,6 +49,8 @@ const getOrders = {
       const queryFilter = queryParts.join(" ") || undefined;
 
       const query = gql`
+        #graphql
+
         query GetOrders($first: Int!, $query: String, $after: String, $before: String, $sortKey: OrderSortKeys, $reverse: Boolean) {
           orders(first: $first, query: $query, after: $after, before: $before, sortKey: $sortKey, reverse: $reverse) {
             edges {

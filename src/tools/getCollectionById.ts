@@ -42,6 +42,8 @@ const getCollectionById = {
       const productsFirst = input.productsFirst ?? 25;
 
       const query = gql`
+        #graphql
+
         query GetCollectionById($id: ID!, $productsFirst: Int!) {
           collection(id: $id) {
             id

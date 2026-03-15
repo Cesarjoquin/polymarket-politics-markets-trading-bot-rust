@@ -41,6 +41,8 @@ const getProductVariantsDetailed = {
         : `gid://shopify/Product/${input.productId}`;
 
       const query = gql`
+        #graphql
+
         query GetProductVariantsDetailed($id: ID!, $first: Int!) {
           product(id: $id) {
             id

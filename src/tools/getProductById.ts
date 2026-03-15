@@ -28,6 +28,8 @@ const getProductById = {
       const { productId } = input;
 
       const query = gql`
+        #graphql
+
         query GetProductById($id: ID!) {
           product(id: $id) {
             id

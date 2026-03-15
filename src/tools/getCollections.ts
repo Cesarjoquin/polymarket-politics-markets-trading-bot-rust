@@ -35,6 +35,8 @@ const getCollections = {
   execute: async (input: GetCollectionsInput) => {
     try {
       const query = gql`
+        #graphql
+
         query GetCollections($first: Int!, $query: String) {
           collections(first: $first, query: $query) {
             edges {

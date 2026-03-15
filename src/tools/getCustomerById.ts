@@ -31,6 +31,8 @@ const getCustomerById = {
       const customerGid = `gid://shopify/Customer/${id}`;
 
       const query = gql`
+        #graphql
+
         query GetCustomerById($id: ID!) {
           customer(id: $id) {
             id

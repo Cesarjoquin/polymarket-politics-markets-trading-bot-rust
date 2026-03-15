@@ -39,6 +39,8 @@ const getCustomerOrders = {
 
       // Query to get orders for a specific customer
       const query = gql`
+        #graphql
+
         query GetCustomerOrders($query: String!, $first: Int!, $after: String, $before: String, $sortKey: OrderSortKeys, $reverse: Boolean) {
           orders(query: $query, first: $first, after: $after, before: $before, sortKey: $sortKey, reverse: $reverse) {
             edges {

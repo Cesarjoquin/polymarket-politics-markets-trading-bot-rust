@@ -27,6 +27,8 @@ const getMetafields = {
   execute: async (input: GetMetafieldsInput) => {
     try {
       const query = gql`
+        #graphql
+
         query GetMetafields($ownerId: ID!, $first: Int!, $namespace: String, $after: String) {
           node(id: $ownerId) {
             ... on HasMetafields {
