@@ -1,6 +1,7 @@
 import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
+import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
 
 // Input schema for manageProductVariants
 const VariantOptionSchema = z.object({
@@ -16,6 +17,8 @@ const VariantSchema = z.object({
   tracked: z.boolean().optional().describe("Whether inventory is tracked. Set false for print-on-demand."),
   taxable: z.boolean().optional().describe("Whether the variant is taxable"),
   barcode: z.string().optional(),
+  weight: z.number().optional().describe("Weight of the variant"),
+  weightUnit: z.enum(["GRAMS", "KILOGRAMS", "OUNCES", "POUNDS"]).optional().describe("Unit of weight"),
   optionValues: z.array(VariantOptionSchema).optional(),
 });
 
@@ -99,6 +102,9 @@ const manageProductVariants = {
           const inventoryItem: Record<string, any> = {};
           if (v.sku) inventoryItem.sku = v.sku;
           if (v.tracked !== undefined) inventoryItem.tracked = v.tracked;
+          if (v.weight !== undefined) {
+            inventoryItem.measurement = { weight: { value: v.weight, unit: v.weightUnit || 'GRAMS' } };
+          }
           if (Object.keys(inventoryItem).length > 0) variant.inventoryItem = inventoryItem;
           if (v.optionValues) {
             variant.optionValues = v.optionValues.map((ov) => ({
@@ -120,13 +126,7 @@ const manageProductVariants = {
           };
         };
 
-        if (createData.productVariantsBulkCreate.userErrors.length > 0) {
-          throw new Error(
-            `Failed to create variants: ${createData.productVariantsBulkCreate.userErrors
-              .map((e) => `${e.field}: ${e.message}`)
-              .join(", ")}`
-          );
-        }
+        checkUserErrors(createData.productVariantsBulkCreate.userErrors, "create variants");
 
         results.created =
           createData.productVariantsBulkCreate.productVariants.map((v: any) => ({
@@ -176,6 +176,9 @@ const manageProductVariants = {
           const inventoryItem: Record<string, any> = {};
           if (v.sku) inventoryItem.sku = v.sku;
           if (v.tracked !== undefined) inventoryItem.tracked = v.tracked;
+          if (v.weight !== undefined) {
+            inventoryItem.measurement = { weight: { value: v.weight, unit: v.weightUnit || 'GRAMS' } };
+          }
           if (Object.keys(inventoryItem).length > 0) variant.inventoryItem = inventoryItem;
           if (v.optionValues) {
             variant.optionValues = v.optionValues.map((ov) => ({
@@ -196,13 +199,7 @@ const manageProductVariants = {
           };
         };
 
-        if (updateData.productVariantsBulkUpdate.userErrors.length > 0) {
-          throw new Error(
-            `Failed to update variants: ${updateData.productVariantsBulkUpdate.userErrors
-              .map((e) => `${e.field}: ${e.message}`)
-              .join(", ")}`
-          );
-        }
+        checkUserErrors(updateData.productVariantsBulkUpdate.userErrors, "update variants");
 
         results.updated =
           updateData.productVariantsBulkUpdate.productVariants.map((v: any) => ({
@@ -216,12 +213,7 @@ const manageProductVariants = {
 
       return results;
     } catch (error) {
-      console.error("Error managing product variants:", error);
-      throw new Error(
-        `Failed to manage product variants: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+      handleToolError("manage product variants", error);
     }
   },
 };
