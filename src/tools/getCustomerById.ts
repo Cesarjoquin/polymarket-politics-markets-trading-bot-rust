@@ -56,14 +56,18 @@ const getCustomerById = {
               country
               phone
             }
-            addresses {
-              address1
-              address2
-              city
-              provinceCode
-              zip
-              country
-              phone
+            addressesV2(first: 10) {
+              edges {
+                node {
+                  address1
+                  address2
+                  city
+                  provinceCode
+                  zip
+                  country
+                  phone
+                }
+              }
             }
             amountSpent {
               amount
@@ -102,6 +106,9 @@ const getCustomerById = {
       const metafields = customer.metafields
         ? edgesToNodes(customer.metafields)
         : [];
+      const addresses = customer.addressesV2
+        ? edgesToNodes(customer.addressesV2)
+        : [];
 
       return {
         customer: {
@@ -116,7 +123,7 @@ const getCustomerById = {
           note: customer.note,
           taxExempt: customer.taxExempt,
           defaultAddress: customer.defaultAddress,
-          addresses: customer.addresses,
+          addresses,
           amountSpent: customer.amountSpent,
           numberOfOrders: customer.numberOfOrders,
           metafields

@@ -1,7 +1,7 @@
 import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
-import { handleToolError } from "../lib/toolUtils.js";
+import { handleToolError, edgesToNodes } from "../lib/toolUtils.js";
 
 // Input schema for getCustomers
 const GetCustomersInputSchema = z.object({
@@ -61,14 +61,18 @@ const getCustomers = {
                   country
                   phone
                 }
-                addresses {
-                  address1
-                  address2
-                  city
-                  provinceCode
-                  zip
-                  country
-                  phone
+                addressesV2(first: 10) {
+                  edges {
+                    node {
+                      address1
+                      address2
+                      city
+                      provinceCode
+                      zip
+                      country
+                      phone
+                    }
+                  }
                 }
                 amountSpent {
                   amount
@@ -114,7 +118,9 @@ const getCustomers = {
           updatedAt: customer.updatedAt,
           tags: customer.tags,
           defaultAddress: customer.defaultAddress,
-          addresses: customer.addresses,
+          addresses: customer.addressesV2
+            ? edgesToNodes(customer.addressesV2)
+            : [],
           amountSpent: customer.amountSpent,
           numberOfOrders: customer.numberOfOrders
         };

@@ -1,7 +1,7 @@
 import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
-import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
+import { checkUserErrors, handleToolError, edgesToNodes } from "../lib/toolUtils.js";
 
 // Input schema for creating a customer
 const CreateCustomerInputSchema = z.object({
@@ -30,7 +30,7 @@ const CreateCustomerInputSchema = z.object({
         city: z.string().optional(),
         provinceCode: z.string().optional(),
         zip: z.string().optional(),
-        country: z.string().optional(),
+        countryCode: z.string().optional(),
         phone: z.string().optional()
       })
     )
@@ -81,14 +81,18 @@ const createCustomer = {
                 country
                 phone
               }
-              addresses {
-                address1
-                address2
-                city
-                provinceCode
-                zip
-                country
-                phone
+              addressesV2(first: 10) {
+                edges {
+                  node {
+                    address1
+                    address2
+                    city
+                    provinceCode
+                    zip
+                    country
+                    phone
+                  }
+                }
               }
               metafields(first: 10) {
                 edges {
@@ -133,6 +137,9 @@ const createCustomer = {
       // Format metafields if they exist
       const metafields =
         customer.metafields?.edges.map((edge: any) => edge.node) || [];
+      const addresses = customer.addressesV2
+        ? edgesToNodes(customer.addressesV2)
+        : [];
 
       return {
         customer: {
@@ -147,7 +154,7 @@ const createCustomer = {
           createdAt: customer.createdAt,
           updatedAt: customer.updatedAt,
           defaultAddress: customer.defaultAddress,
-          addresses: customer.addresses,
+          addresses,
           metafields
         }
       };

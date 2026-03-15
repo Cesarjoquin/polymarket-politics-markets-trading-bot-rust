@@ -40,11 +40,11 @@ const UpdateOrderInputSchema = z.object({
       address2: z.string().optional(),
       city: z.string().optional(),
       company: z.string().optional(),
-      country: z.string().optional(),
+      countryCode: z.string().optional(),
       firstName: z.string().optional(),
       lastName: z.string().optional(),
       phone: z.string().optional(),
-      province: z.string().optional(),
+      provinceCode: z.string().optional(),
       zip: z.string().optional()
     })
     .optional()
