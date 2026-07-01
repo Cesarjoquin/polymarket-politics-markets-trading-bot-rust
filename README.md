@@ -1,533 +1,339 @@
 # Shopify MCP Server
 
-(please leave a star if you like!)
+A production-oriented [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes the Shopify Admin GraphQL API to AI assistants. Connect Claude Desktop, Claude Code, or any MCP-compatible client to manage products, customers, orders, inventory, and metafields through a typed tool interface.
 
-MCP Server for Shopify API, enabling interaction with store data through GraphQL API. This server provides tools for managing products, customers, orders, and more.
+---
 
-**📦 Package Name: `shopify-mcp`**
-**🚀 Command: `shopify-mcp` (NOT `shopify-mcp-server`)**
+## Table of Contents
 
-<a href="https://glama.ai/mcp/servers/@GeLi2001/shopify-mcp">
-  <img width="380" height="200" src="https://glama.ai/mcp/servers/@GeLi2001/shopify-mcp/badge" alt="Shopify MCP server" />
-</a>
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Development](#development)
+- [Testing](#testing)
+- [Project Structure](#project-structure)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [FAQ](#faq)
+- [License](#license)
+
+---
+
+## Overview
+
+This server translates MCP tool calls into Shopify Admin GraphQL operations. It supports static access tokens and OAuth client-credentials (Dev Dashboard apps), optional Redis-backed token persistence, structured JSON logging, and graceful shutdown.
+
+```mermaid
+flowchart LR
+  Client[MCP Client] -->|stdio JSON-RPC| Server[MCP Server]
+  Server --> Tools[Tool Registry]
+  Tools --> GraphQL[Shopify Admin GraphQL]
+  Server --> Auth[OAuth Token Manager]
+  Auth --> Redis[(Redis Cache)]
+  Auth --> GraphQL
+```
+
+---
+
+## Architecture
+
+### Runtime layers
+
+| Layer | Responsibility |
+|-------|----------------|
+| `src/index.ts` | Process entry, error boundary |
+| `src/server/` | Bootstrap, MCP wiring, shutdown hooks |
+| `src/config/` | Environment and CLI configuration |
+| `src/lib/` | Auth, logging, Redis, shared utilities |
+| `src/tools/` | 40 MCP tools (products, orders, customers, …) |
+
+### Request workflow
+
+```mermaid
+sequenceDiagram
+  participant C as MCP Client
+  participant M as McpServer
+  participant T as Tool
+  participant S as Shopify API
+
+  C->>M: tools/call
+  M->>T: execute(args)
+  T->>T: Zod schema validation
+  T->>S: GraphQL request
+  S-->>T: Response
+  T-->>M: Formatted JSON
+  M-->>C: MCP content block
+```
+
+### Authentication flow
+
+```mermaid
+sequenceDiagram
+  participant S as Server
+  participant R as Redis
+  participant SH as Shopify OAuth
+
+  S->>R: Check cached token
+  alt Valid cache hit
+    R-->>S: access_token
+  else Cache miss
+    S->>SH: client_credentials grant
+    SH-->>S: access_token + expires_in
+    S->>R: Store token with TTL
+  end
+  Note over S: Auto-refresh 5 min before expiry
+```
+
+---
 
 ## Features
 
-- **Product Management**: Full CRUD for products, variants, and options (8 tools)
-- **Customer Management**: Full CRUD, merge, and address management (8 tools)
-- **Order Management**: Smart lookup, cancel, close/open, mark as paid, fulfillment, refunds (10 tools)
-- **Metafield Management**: Get, set, and delete metafields on any resource (3 tools)
-- **Inventory Management**: Set absolute inventory quantities at locations (1 tool)
-- **Tag Management**: Add/remove tags on any taggable resource (1 tool)
-- **Pagination & Sorting**: Cursor-based pagination and sort keys on all list queries
-- **Advanced Filtering**: Pass-through Shopify query syntax for all list endpoints
-- **GraphQL Integration**: Direct integration with Shopify's GraphQL Admin API (2026-01)
-- **Comprehensive Error Handling**: Clear error messages for API and authentication issues
+| Category | Capabilities |
+|----------|-------------|
+| **Products** | CRUD, variants, options, collections |
+| **Customers** | CRUD, merge, address management |
+| **Orders** | Query, cancel, fulfill, refund, draft orders |
+| **Metafields** | Read, write, delete on any resource |
+| **Inventory** | Set quantities, read levels and items |
+| **Discovery** | Shop info, locations, markets, price lists |
+| **Platform** | Redis token cache, structured logging, graceful shutdown, strict TypeScript |
 
-## Prerequisites
+All list tools support cursor pagination, sorting, and Shopify search syntax filtering.
 
-1. Node.js (version 18 or higher)
-2. A Shopify store with a custom app (see setup instructions below)
+---
 
-## Setup
+## Requirements
 
-### Authentication
+- **Node.js** 18 or later
+- **Shopify store** with a custom app and Admin API scopes
+- **Redis** (optional) for OAuth token persistence across restarts
 
-This server supports two authentication methods:
+### Required Admin API scopes
 
-#### Option 1: Client Credentials (Dev Dashboard apps, January 2026+)
+`read_products`, `write_products`, `read_customers`, `write_customers`, `read_orders`, `write_orders` (plus scopes for inventory/metafields as needed).
 
-As of January 1, 2026, new Shopify apps are created in the **Dev Dashboard** and use OAuth client credentials instead of static access tokens.
+---
 
-1. From your Shopify admin, go to **Settings** > **Apps and sales channels**
-2. Click **Develop apps** > **Build app in dev dashboard**
-3. Create a new app and configure **Admin API scopes**:
-   - `read_products`, `write_products`
-   - `read_customers`, `write_customers`
-   - `read_orders`, `write_orders`
-4. Install the app on your store
-5. Copy your **Client ID** and **Client Secret** from the app's API credentials
+## Installation
 
-The server will automatically exchange these for an access token and refresh it before it expires (tokens are valid for ~24 hours).
-
-#### Option 2: Static Access Token (legacy apps)
-
-If you have an existing custom app with a static `shpat_` access token, you can still use it directly.
-
-### Usage with Claude Desktop
-
-**Client Credentials (recommended):**
-
-```json
-{
-  "mcpServers": {
-    "shopify": {
-      "command": "npx",
-      "args": [
-        "shopify-mcp",
-        "--clientId",
-        "<YOUR_CLIENT_ID>",
-        "--clientSecret",
-        "<YOUR_CLIENT_SECRET>",
-        "--domain",
-        "<YOUR_SHOP>.myshopify.com"
-      ]
-    }
-  }
-}
-```
-
-**Static Access Token (legacy):**
-
-```json
-{
-  "mcpServers": {
-    "shopify": {
-      "command": "npx",
-      "args": [
-        "shopify-mcp",
-        "--accessToken",
-        "<YOUR_ACCESS_TOKEN>",
-        "--domain",
-        "<YOUR_SHOP>.myshopify.com"
-      ]
-    }
-  }
-}
-```
-
-Locations for the Claude Desktop config file:
-
-- MacOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- Windows: `%APPDATA%/Claude/claude_desktop_config.json`
-
-### Usage with Claude Code
-
-**Client Credentials:**
+### Run with npx (recommended)
 
 ```bash
-claude mcp add shopify -- npx shopify-mcp \
+npx shopify-mcp \
   --clientId YOUR_CLIENT_ID \
   --clientSecret YOUR_CLIENT_SECRET \
   --domain your-store.myshopify.com
 ```
 
-**Static Access Token (legacy):**
+### Install from source
 
 ```bash
-claude mcp add shopify -- npx shopify-mcp \
-  --accessToken YOUR_ACCESS_TOKEN \
-  --domain your-store.myshopify.com
+git clone https://github.com/GeLi2001/shopify-mcp.git
+cd shopify-mcp
+npm install
+npm run build
+npm start
 ```
 
-### Alternative: Run Locally with Environment Variables
+### Claude Desktop
 
-If you prefer to use environment variables instead of command-line arguments:
+Add to `claude_desktop_config.json`:
 
-1. Create a `.env` file with your Shopify credentials:
-
-   **Client Credentials:**
-   ```
-   SHOPIFY_CLIENT_ID=your_client_id
-   SHOPIFY_CLIENT_SECRET=your_client_secret
-   MYSHOPIFY_DOMAIN=your-store.myshopify.com
-   ```
-
-   **Static Access Token (legacy):**
-   ```
-   SHOPIFY_ACCESS_TOKEN=your_access_token
-   MYSHOPIFY_DOMAIN=your-store.myshopify.com
-   ```
-
-2. Run the server with npx:
-   ```
-   npx shopify-mcp
-   ```
-
-### Direct Installation (Optional)
-
-If you want to install the package globally:
-
-```
-npm install -g shopify-mcp
+```json
+{
+  "mcpServers": {
+    "shopify": {
+      "command": "npx",
+      "args": [
+        "shopify-mcp",
+        "--clientId", "<CLIENT_ID>",
+        "--clientSecret", "<CLIENT_SECRET>",
+        "--domain", "<store>.myshopify.com"
+      ]
+    }
+  }
+}
 ```
 
-Then run it:
+Config locations:
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%/Claude/claude_desktop_config.json`
 
+---
+
+## Configuration
+
+Copy `.env.example` to `.env` and fill in values:
+
+```bash
+cp .env.example .env
 ```
-shopify-mcp --clientId=<ID> --clientSecret=<SECRET> --domain=<YOUR_SHOP>.myshopify.com
+
+### Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `MYSHOPIFY_DOMAIN` | Yes | Store domain, e.g. `store.myshopify.com` |
+| `SHOPIFY_ACCESS_TOKEN` | Option A | Static `shpat_` token (legacy apps) |
+| `SHOPIFY_CLIENT_ID` | Option B | Dev Dashboard client ID |
+| `SHOPIFY_CLIENT_SECRET` | Option B | Dev Dashboard client secret |
+| `SHOPIFY_API_VERSION` | No | API version (default: `2026-01`) |
+| `LOG_LEVEL` | No | `debug`, `info`, `warn`, `error` |
+| `REDIS_ENABLED` | No | Enable Redis persistence (`true`/`false`) |
+| `REDIS_URL` | If Redis | Connection URL, e.g. `redis://127.0.0.1:6379` |
+| `REDIS_KEY_PREFIX` | No | Key namespace prefix (default: `shopify-mcp:`) |
+| `REDIS_MAX_RETRIES` | No | Max command retries (default: `10`) |
+| `REDIS_CONNECT_TIMEOUT_MS` | No | Connect timeout in ms (default: `10000`) |
+
+CLI flags (`--accessToken`, `--clientId`, `--clientSecret`, `--domain`, `--apiVersion`) override environment variables.
+
+---
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Run in development (TypeScript directly)
+npm run dev
+
+# Full validation pipeline
+npm run validate
+
+# GraphQL schema validation
+npm run validate:graphql
 ```
 
-### Additional Options
+### Scripts
 
-- `--apiVersion`: Specify the Shopify API version (default: `2026-01`). Can also be set via `SHOPIFY_API_VERSION` environment variable.
-
-**⚠️ Important:** If you see errors about "SHOPIFY_ACCESS_TOKEN environment variable is required" when using command-line arguments, you might have a different package installed. Make sure you're using `shopify-mcp`, not `shopify-mcp-server`.
-
-## Available Tools (31)
-
-### Pagination, Sorting & Filtering
-
-All list query tools (`get-products`, `get-customers`, `get-orders`, `get-customer-orders`) support:
-
-- **Cursor-based pagination**: `after` / `before` (cursor strings), with `pageInfo` in the response (`hasNextPage`, `hasPreviousPage`, `startCursor`, `endCursor`)
-- **Sorting**: `sortKey` (enum specific to each resource) and `reverse` (boolean)
-- **Advanced filtering**: `query` or `searchQuery` parameter accepting [Shopify query syntax](https://shopify.dev/docs/api/usage/search-syntax)
-
-### Product Management (8 tools)
-
-1. **`get-products`**
-
-   - Get all products or search by title with pagination and sorting
-   - Inputs:
-     - `searchTitle` (string, optional): Filter products by title (wraps in `title:*...*`)
-     - `limit` (number, default: 10): Maximum number of products to return
-     - `query` (string, optional): Raw Shopify query string (e.g. `"status:active vendor:Nike tag:sale"`)
-     - `sortKey` (string, optional): One of `CREATED_AT`, `ID`, `INVENTORY_TOTAL`, `PRODUCT_TYPE`, `PUBLISHED_AT`, `RELEVANCE`, `TITLE`, `UPDATED_AT`, `VENDOR`
-     - `reverse` (boolean, optional): Reverse the sort order
-     - `after` / `before` (string, optional): Pagination cursors
-
-2. **`get-product-by-id`**
-
-   - Get a specific product by ID with full details including SEO, options, media, variants, and collections
-   - Inputs:
-     - `productId` (string, required): Shopify product GID
-   - Returns: `productType`, `descriptionHtml`, `seo`, `options` (with `optionValues`), `media` (images), `variants`, `collections`, `tags`, `vendor`, price range, inventory
-
-3. **`create-product`**
-
-   - Create a new product. When using `productOptions`, Shopify registers all option values but only creates one default variant (first value of each option, price $0). Use `manage-product-variants` with `strategy: REMOVE_STANDALONE_VARIANT` afterward to create all real variants with prices.
-   - Inputs:
-     - `title` (string, required): Title of the product
-     - `descriptionHtml` (string, optional): Description with HTML
-     - `handle` (string, optional): URL slug. Auto-generated from title if omitted
-     - `vendor` (string, optional): Vendor of the product
-     - `productType` (string, optional): Type of the product
-     - `tags` (array of strings, optional): Product tags
-     - `status` (string, optional): `"ACTIVE"`, `"DRAFT"`, or `"ARCHIVED"`. Default `"DRAFT"`
-     - `seo` (object, optional): `{ title, description }` for search engines
-     - `metafields` (array of objects, optional): Custom metafields (`namespace`, `key`, `value`, `type`)
-     - `productOptions` (array of objects, optional): Options to create inline, e.g. `[{ name: "Size", values: [{ name: "S" }, { name: "M" }] }]`. Max 3 options.
-     - `collectionsToJoin` (array of strings, optional): Collection GIDs to add the product to
-
-4. **`update-product`**
-
-   - Update an existing product's fields
-   - Inputs:
-     - `id` (string, required): Shopify product GID
-     - `title` (string, optional): New title
-     - `descriptionHtml` (string, optional): New description
-     - `handle` (string, optional): New URL slug
-     - `vendor` (string, optional): New vendor
-     - `productType` (string, optional): New product type
-     - `tags` (array of strings, optional): New tags (overwrites existing)
-     - `status` (string, optional): `"ACTIVE"`, `"DRAFT"`, or `"ARCHIVED"`
-     - `seo` (object, optional): `{ title, description }` for search engines
-     - `metafields` (array of objects, optional): Metafields to set or update
-     - `collectionsToJoin` (array of strings, optional): Collection GIDs to add the product to
-     - `collectionsToLeave` (array of strings, optional): Collection GIDs to remove the product from
-     - `redirectNewHandle` (boolean, optional): If true, old handle redirects to new handle
-
-5. **`delete-product`**
-
-   - Delete a product
-   - Inputs:
-     - `id` (string, required): Shopify product GID
-
-6. **`manage-product-options`**
-
-   - Create, update, or delete product options (e.g. Size, Color)
-   - Inputs:
-     - `productId` (string, required): Shopify product GID
-     - `action` (string, required): `"create"`, `"update"`, or `"delete"`
-     - `variantStrategy` (string, optional): `"LEAVE_AS_IS"` (default) or `"CREATE"` — controls whether new variant combinations are generated when adding options
-     - For `action: "create"`:
-       - `options` (array, required): Options to create, e.g. `[{ name: "Size", values: ["S", "M", "L"] }]`
-     - For `action: "update"`:
-       - `optionId` (string, required): Option GID to update
-       - `name` (string, optional): New name for the option
-       - `position` (number, optional): New position
-       - `valuesToAdd` (array of strings, optional): Values to add
-       - `valuesToDelete` (array of strings, optional): Value GIDs to remove
-     - For `action: "delete"`:
-       - `optionIds` (array of strings, required): Option GIDs to delete
-
-7. **`manage-product-variants`**
-
-   - Create or update product variants in bulk
-   - Inputs:
-     - `productId` (string, required): Shopify product GID
-     - `strategy` (string, optional): How to handle the default variant when creating. `"DEFAULT"` (removes "Default Title" automatically), `"REMOVE_STANDALONE_VARIANT"` (recommended for full control), or `"PRESERVE_STANDALONE_VARIANT"`
-     - `variants` (array, required): Variants to create or update. Each variant:
-       - `id` (string, optional): Variant GID for updates. Omit to create new
-       - `price` (string, optional): Price, e.g. `"49.00"`
-       - `compareAtPrice` (string, optional): Compare-at price for showing discounts
-       - `sku` (string, optional): SKU (mapped to `inventoryItem.sku`)
-       - `tracked` (boolean, optional): Whether inventory is tracked. Set `false` for print-on-demand
-       - `taxable` (boolean, optional): Whether the variant is taxable
-       - `barcode` (string, optional): Barcode
-       - `weight` (number, optional): Weight of the variant
-       - `weightUnit` (string, optional): `"GRAMS"`, `"KILOGRAMS"`, `"OUNCES"`, or `"POUNDS"`
-       - `optionValues` (array, optional): Option values, e.g. `[{ optionName: "Size", name: "A4" }]`
-
-8. **`delete-product-variants`**
-
-   - Delete one or more variants from a product
-   - Inputs:
-     - `productId` (string, required): Shopify product GID
-     - `variantIds` (array of strings, required): Variant GIDs to delete
-
-### Customer Management (8 tools)
-
-1. **`get-customers`**
-
-   - List customers with search, pagination, and sorting
-   - Inputs:
-     - `searchQuery` (string, optional): Freetext or Shopify query syntax (e.g. `"country:US tag:vip orders_count:>5"`)
-     - `limit` (number, default: 10): Maximum number of customers to return
-     - `sortKey` (string, optional): One of `CREATED_AT`, `ID`, `LAST_UPDATE`, `LOCATION`, `NAME`, `ORDERS_COUNT`, `RELEVANCE`, `TOTAL_SPENT`, `UPDATED_AT`
-     - `reverse` (boolean, optional): Reverse the sort order
-     - `after` / `before` (string, optional): Pagination cursors
-
-2. **`get-customer-by-id`**
-
-   - Get a single customer by ID with full details
-   - Inputs:
-     - `id` (string, required): Shopify customer ID (numeric only, e.g. `"6276879810626"`)
-   - Returns: name, email, phone, addresses, tags, note, tax status, amount spent, order count, metafields
-
-3. **`create-customer`**
-
-   - Create a new customer
-   - Inputs:
-     - `firstName` (string, optional): Customer's first name
-     - `lastName` (string, optional): Customer's last name
-     - `email` (string, optional): Customer's email address
-     - `phone` (string, optional): Customer's phone number
-     - `tags` (array of strings, optional): Tags to apply
-     - `note` (string, optional): Note about the customer
-     - `taxExempt` (boolean, optional): Whether the customer is exempt from taxes
-     - `metafields` (array of objects, optional): Custom metafields (`namespace`, `key`, `value`, `type`)
-     - `addresses` (array of objects, optional): Customer addresses (`address1`, `address2`, `city`, `provinceCode`, `zip`, `country`, `phone`)
-
-4. **`update-customer`**
-
-   - Update a customer's information
-   - Inputs:
-     - `id` (string, required): Shopify customer ID (numeric only, e.g. `"6276879810626"`)
-     - `firstName` (string, optional): Customer's first name
-     - `lastName` (string, optional): Customer's last name
-     - `email` (string, optional): Customer's email address
-     - `phone` (string, optional): Customer's phone number
-     - `tags` (array of strings, optional): Tags to apply to the customer
-     - `note` (string, optional): Note about the customer
-     - `taxExempt` (boolean, optional): Whether the customer is exempt from taxes
-     - `emailMarketingConsent` (object, optional): Email marketing consent settings
-       - `marketingState` (string, required): `"NOT_SUBSCRIBED"`, `"SUBSCRIBED"`, `"UNSUBSCRIBED"`, or `"PENDING"`
-       - `consentUpdatedAt` (string, optional): ISO 8601 timestamp
-       - `marketingOptInLevel` (string, optional): `"SINGLE_OPT_IN"`, `"CONFIRMED_OPT_IN"`, or `"UNKNOWN"`
-     - `metafields` (array of objects, optional): Customer metafields
-
-5. **`delete-customer`**
-
-   - Delete a customer
-   - Inputs:
-     - `id` (string, required): Shopify customer ID (numeric only, e.g. `"6276879810626"`)
-
-6. **`customer-merge`**
-
-   - Merge two customer records into one
-   - Inputs:
-     - `customerOneId` (string, required): GID of the first customer
-     - `customerTwoId` (string, required): GID of the second customer
-     - `overrideFields` (object, optional): Override which fields to keep from which customer (firstName, lastName, email, phone, defaultAddress, note, tags)
-
-7. **`manage-customer-address`**
-
-   - Create, update, or delete a customer's mailing address
-   - Inputs:
-     - `customerId` (string, required): Customer GID
-     - `action` (string, required): `"create"`, `"update"`, or `"delete"`
-     - `addressId` (string, optional): Address GID (required for update/delete)
-     - `address` (object, optional): Address fields (required for create/update): `address1`, `address2`, `city`, `company`, `countryCode`, `firstName`, `lastName`, `phone`, `provinceCode`, `zip`
-     - `setAsDefault` (boolean, optional): Set as customer's default address
-
-### Order Management (10 tools)
-
-1. **`get-orders`**
-
-   - Get orders with filtering, pagination, and sorting
-   - Inputs:
-     - `status` (string, optional): `"any"`, `"open"`, `"closed"`, or `"cancelled"`. Default `"any"`
-     - `limit` (number, default: 10): Maximum number of orders to return
-     - `query` (string, optional): Raw Shopify query string (e.g. `"financial_status:paid fulfillment_status:shipped tag:rush"`)
-     - `sortKey` (string, optional): One of `CREATED_AT`, `ORDER_NUMBER`, `TOTAL_PRICE`, `FINANCIAL_STATUS`, `FULFILLMENT_STATUS`, `UPDATED_AT`, `CUSTOMER_NAME`, `PROCESSED_AT`, `ID`, `RELEVANCE`
-     - `reverse` (boolean, optional): Reverse the sort order
-     - `after` / `before` (string, optional): Pagination cursors
-
-2. **`get-order-by-id`**
-
-   - Get a specific order by ID with smart lookup — accepts order name (`#77235` or `77235`), numeric ID (`8054938337547`), or full GID (`gid://shopify/Order/...`)
-   - Inputs:
-     - `orderId` (string, required): Order name, numeric ID, or full GID
-   - Returns: pricing, customer, shipping/billing addresses, line items, tags, notes, metafields, cancel reason, return status, discount codes, PO number, timestamps
-
-3. **`update-order`**
-
-   - Update an existing order
-   - Inputs:
-     - `id` (string, required): Shopify order GID
-     - `tags` (array of strings, optional): New tags for the order
-     - `email` (string, optional): Update customer email on the order
-     - `note` (string, optional): Order notes
-     - `phone` (string, optional): Phone number for the order
-     - `poNumber` (string, optional): Purchase order number
-     - `customAttributes` (array of objects, optional): Custom key-value attributes
-     - `metafields` (array of objects, optional): Order metafields
-     - `shippingAddress` (object, optional): Shipping address fields
-
-4. **`get-customer-orders`**
-
-   - Get orders for a specific customer with pagination and sorting
-   - Inputs:
-     - `customerId` (string, required): Shopify customer ID (numeric only, e.g. `"6276879810626"`)
-     - `limit` (number, default: 10): Maximum number of orders to return
-     - `sortKey` (string, optional): Same sort keys as `get-orders`
-     - `reverse` (boolean, optional): Reverse the sort order
-     - `after` / `before` (string, optional): Pagination cursors
-
-5. **`order-cancel`**
-
-   - Cancel an order with options for refunding, restocking, and customer notification. **Irreversible.**
-   - Inputs:
-     - `orderId` (string, required): Order GID
-     - `reason` (string, required): `"CUSTOMER"`, `"DECLINED"`, `"FRAUD"`, `"INVENTORY"`, `"OTHER"`, or `"STAFF"`
-     - `restock` (boolean, required): Whether to restock inventory
-     - `notifyCustomer` (boolean, default: false): Notify the customer
-     - `staffNote` (string, optional): Internal note
-     - `refund` (boolean, optional): Refund to original payment method
-
-6. **`order-close-open`**
-
-   - Close or reopen an order
-   - Inputs:
-     - `orderId` (string, required): Order GID
-     - `action` (string, required): `"close"` or `"open"`
-
-7. **`order-mark-as-paid`**
-
-   - Mark an order as paid (for manual/offline payments)
-   - Inputs:
-     - `orderId` (string, required): Order GID
-
-8. **`create-fulfillment`**
-
-   - Create a fulfillment (mark items as shipped) with optional tracking
-   - Inputs:
-     - `lineItemsByFulfillmentOrder` (array, required): Fulfillment orders and line items to fulfill
-     - `trackingInfo` (object, optional): `{ number, url, company }` tracking details
-     - `notifyCustomer` (boolean, default: false): Send shipping notification
-
-9. **`refund-create`**
-
-   - Create a full or partial refund with optional restocking
-   - Inputs:
-     - `orderId` (string, required): Order GID
-     - `refundLineItems` (array, optional): Line items to refund with `lineItemId`, `quantity`, `restockType` (`CANCEL`/`RETURN`/`NO_RESTOCK`), `locationId`
-     - `shipping` (object, optional): `{ amount, fullRefund }` shipping refund
-     - `note` (string, optional): Refund note
-     - `notify` (boolean, optional): Send refund notification
-
-10. **`create-draft-order`**
-
-    - Create a draft order for phone/chat sales, invoicing, or wholesale
-    - Inputs:
-      - `lineItems` (array, required): Product variants (`variantId`) or custom items (`title` + price). Max 499
-      - `customerId` (string, optional): Customer GID
-      - `email`, `phone`, `note`, `tags`, `poNumber` (optional)
-      - `shippingAddress`, `billingAddress` (objects, optional)
-      - `appliedDiscount` (object, optional): `{ title, value, valueType }` order-level discount
-
-### Draft Order Management (1 tool)
-
-1. **`complete-draft-order`**
-
-   - Complete a draft order, converting it into a real order
-   - Inputs:
-     - `draftOrderId` (string, required): Draft order GID
-     - `paymentGatewayId` (string, optional): Payment gateway GID
-
-### Metafield Management (3 tools)
-
-1. **`get-metafields`**
-
-   - Get metafields for any Shopify resource (products, orders, customers, variants, collections, etc.)
-   - Inputs:
-     - `ownerId` (string, required): GID of any resource
-     - `namespace` (string, optional): Filter by namespace
-     - `first` (number, default: 25): Number of metafields to return
-     - `after` (string, optional): Pagination cursor
-
-2. **`set-metafields`**
-
-   - Set metafields on any Shopify resource. Creates or updates up to 25 metafields atomically
-   - Inputs:
-     - `metafields` (array, required): Metafields to set, each with `ownerId`, `key`, `value`, and optional `namespace`, `type`
-
-3. **`delete-metafields`**
-
-   - Delete metafields from any Shopify resource
-   - Inputs:
-     - `metafields` (array, required): Metafields to delete, each with `ownerId`, `namespace`, `key`
-
-### Inventory Management (1 tool)
-
-1. **`inventory-set-quantities`**
-
-   - Set absolute inventory quantities for items at specific locations
-   - Inputs:
-     - `reason` (string, required): Reason for change (e.g. `"correction"`, `"cycle_count_available"`)
-     - `name` (string, required): `"available"` or `"on_hand"`
-     - `quantities` (array, required): Items with `inventoryItemId`, `locationId`, `quantity`
-
-### Tag Management (1 tool)
-
-1. **`manage-tags`**
-
-   - Add or remove tags on any taggable resource (orders, products, customers, draft orders, articles)
-   - Inputs:
-     - `id` (string, required): GID of the resource
-     - `tags` (array of strings, required): Tags to add or remove
-     - `action` (string, required): `"add"` or `"remove"`
-
-### Order Query Filter Reference
-
-The `get-orders` tool's `query` parameter supports [Shopify search syntax](https://shopify.dev/docs/api/usage/search-syntax):
-
-| Filter | Example |
+| Script | Purpose |
 |--------|---------|
-| `name` | `name:#77235` |
-| `created_at` | `created_at:>2024-01-01` or `created_at:2024-01-01..2024-03-31` |
-| `updated_at` | `updated_at:>2024-06-01` |
-| `financial_status` | `financial_status:paid` |
-| `fulfillment_status` | `fulfillment_status:shipped` |
-| `status` | `status:open` |
-| `email` | `email:customer@example.com` |
-| `tag` / `tag_not` | `tag:vip tag_not:wholesale` |
-| `discount_code` | `discount_code:SUMMER20` |
-| `sku` | `sku:PROD-001` |
-| `risk_level` | `risk_level:high` |
-| `gateway` | `gateway:shopify_payments` |
-| `test` | `test:true` |
+| `npm run build` | Compile TypeScript to `dist/` |
+| `npm run typecheck` | Type-check source and tests |
+| `npm run lint` | ESLint |
+| `npm test` | Jest unit tests |
+| `npm run validate` | typecheck + lint + test + build |
 
-## Debugging
+---
 
-If you encounter issues, check Claude Desktop's MCP logs:
+## Testing
+
+Tests live in `tests/` and cover configuration parsing, logging, error utilities, and Redis token caching.
+
+```bash
+npm test
+```
+
+Tests use mocked Redis clients — no running Redis instance required for the test suite.
+
+---
+
+## Project Structure
 
 ```
-tail -n 20 -f ~/Library/Logs/Claude/mcp*.log
+shopify-mcp/
+├── docs/
+│   └── AUDIT.md           # Internal architecture audit
+├── src/
+│   ├── config/            # Environment loading (Zod-validated)
+│   ├── lib/               # Auth, logging, Redis, tool factory
+│   │   └── redis/         # Connection manager + token cache
+│   ├── server/            # Bootstrap, MCP server, shutdown
+│   ├── tools/             # MCP tool implementations
+│   └── index.ts           # Entry point
+├── tests/                 # Unit tests
+├── .env.example           # Configuration template
+├── .github/workflows/     # CI (build, lint, test, typecheck)
+└── package.json
 ```
+
+**Design decisions:**
+- Tools use a `createTool()` factory to eliminate duplicated GraphQL client wiring.
+- Configuration is centralized in `src/config/env.ts` with Zod validation.
+- OAuth tokens optionally persist in Redis so restarts do not force re-authentication.
+- Logs are structured JSON on stderr (safe for stdio MCP transport).
+
+---
+
+## Troubleshooting
+
+### Authentication errors
+
+```
+Authentication credentials are required
+```
+
+Provide either `SHOPIFY_ACCESS_TOKEN` or both `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET`.
+
+### Wrong package installed
+
+If you see errors referencing a different package name, verify you are running `shopify-mcp` (this package), not a similarly named alternative.
+
+### MCP connection issues
+
+Check Claude Desktop MCP logs:
+
+```bash
+# macOS
+tail -f ~/Library/Logs/Claude/mcp*.log
+```
+
+Ensure the server starts without errors:
+
+```bash
+SHOPIFY_ACCESS_TOKEN=shpat_xxx MYSHOPIFY_DOMAIN=store.myshopify.com npm start
+```
+
+### Redis connection failures
+
+If `REDIS_ENABLED=true` but Redis is unreachable, the server exits at startup. Either start Redis locally or set `REDIS_ENABLED=false`.
+
+```bash
+docker run -d -p 6379:6379 redis:7-alpine
+```
+
+### GraphQL userErrors
+
+Shopify returns field-level errors in mutation responses. The server surfaces these as `Failed to <operation>: field: message`.
+
+---
+
+## Contributing
+
+1. Fork the repository and create a feature branch.
+2. Run `npm run validate` before opening a pull request.
+3. Keep commits focused and write clear commit messages.
+4. Add tests for new library or configuration behavior.
+5. Do not commit secrets, `.env`, or `package-lock.json`.
+
+---
+
+## FAQ
+
+**Does this replace the Shopify Admin UI?**  
+No. It provides programmatic access for AI assistants via MCP.
+
+**Can I use a static access token?**  
+Yes. Set `SHOPIFY_ACCESS_TOKEN` for legacy custom apps with `shpat_` tokens.
+
+**Is Redis required?**  
+No. Redis is optional and only caches OAuth tokens for client-credentials auth.
+
+**How many tools are available?**  
+40 tools covering products, customers, orders, metafields, inventory, and store discovery.
+
+**Which API version is used?**  
+Default `2026-01`. Override with `SHOPIFY_API_VERSION` or `--apiVersion`.
+
+**Why JSON logs on stderr?**  
+MCP uses stdout for the protocol. Logs must go to stderr to avoid corrupting the transport.
+
+---
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
