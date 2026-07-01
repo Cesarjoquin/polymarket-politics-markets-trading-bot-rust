@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 // Input schema for updating a customer
 const UpdateCustomerInputSchema = z.object({
@@ -33,22 +33,12 @@ const UpdateCustomerInputSchema = z.object({
     .optional()
 });
 
-type UpdateCustomerInput = z.infer<typeof UpdateCustomerInputSchema>;
-
-// Will be initialized in index.ts
-let shopifyClient: GraphQLClient;
-
-const updateCustomer = {
+export const updateCustomer = createTool({
   name: "update-customer",
   description: "Update a customer's information",
   schema: UpdateCustomerInputSchema,
 
-  // Add initialize method to set up the GraphQL client
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: UpdateCustomerInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const { id, ...customerFields } = input;
 
@@ -141,6 +131,4 @@ const updateCustomer = {
       handleToolError("update customer", error);
     }
   }
-};
-
-export { updateCustomer };
+});

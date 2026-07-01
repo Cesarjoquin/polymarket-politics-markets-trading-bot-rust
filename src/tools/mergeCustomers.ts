@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 const MergeCustomersInputSchema = z.object({
   customerOneId: z.string().describe("GID of the first customer"),
@@ -20,21 +20,13 @@ const MergeCustomersInputSchema = z.object({
     .describe("Override default merge rules for specific fields"),
 });
 
-type MergeCustomersInput = z.infer<typeof MergeCustomersInputSchema>;
-
-let shopifyClient: GraphQLClient;
-
-const mergeCustomers = {
+export const mergeCustomers = createTool({
   name: "customer-merge",
   description:
     "Merge two customer records into one. Optionally override which fields to keep from which customer.",
   schema: MergeCustomersInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: MergeCustomersInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const query = gql`
         #graphql
@@ -88,6 +80,4 @@ const mergeCustomers = {
       handleToolError("merge customers", error);
     }
   },
-};
-
-export { mergeCustomers };
+});

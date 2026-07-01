@@ -1,30 +1,20 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { handleToolError, edgesToNodes } from "../lib/toolUtils.js";
-import { formatLineItems, formatOrderSummary } from "../lib/formatters.js";
+import { createTool } from "../lib/createTool.js";
+import { formatOrderSummary } from "../lib/formatters.js";
 
 // Input schema for getOrderById
 const GetOrderByIdInputSchema = z.object({
   orderId: z.string().min(1)
 });
 
-type GetOrderByIdInput = z.infer<typeof GetOrderByIdInputSchema>;
-
-// Will be initialized in index.ts
-let shopifyClient: GraphQLClient;
-
-const getOrderById = {
+export const getOrderById = createTool({
   name: "get-order-by-id",
   description: "Get a specific order by ID",
   schema: GetOrderByIdInputSchema,
 
-  // Add initialize method to set up the GraphQL client
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: GetOrderByIdInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const { orderId } = input;
 
@@ -224,6 +214,4 @@ const getOrderById = {
       handleToolError("fetch order", error);
     }
   }
-};
-
-export { getOrderById };
+});

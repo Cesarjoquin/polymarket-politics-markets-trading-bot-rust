@@ -1,10 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
-
-// Will be initialized in index.ts
-let shopifyClient: GraphQLClient;
+import { createTool } from "../lib/createTool.js";
 
 // Input schema for updateOrder
 // Based on https://shopify.dev/docs/api/admin-graphql/latest/mutations/orderupdate
@@ -50,19 +47,12 @@ const UpdateOrderInputSchema = z.object({
     .optional()
 });
 
-type UpdateOrderInput = z.infer<typeof UpdateOrderInputSchema>;
-
-const updateOrder = {
+export const updateOrder = createTool({
   name: "update-order",
   description: "Update an existing order with new information",
   schema: UpdateOrderInputSchema,
 
-  // Add initialize method to set up the GraphQL client
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: UpdateOrderInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       // Prepare input for GraphQL mutation
       const { id, ...orderFields } = input;
@@ -153,6 +143,4 @@ const updateOrder = {
       handleToolError("update order", error);
     }
   }
-};
-
-export { updateOrder };
+});

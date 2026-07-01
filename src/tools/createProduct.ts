@@ -1,8 +1,8 @@
 
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 // Input schema for creating a product
 const CreateProductInputSchema = z.object({
@@ -48,22 +48,12 @@ const CreateProductInputSchema = z.object({
     .describe("Collection GIDs to add the product to"),
 });
 
-type CreateProductInput = z.infer<typeof CreateProductInputSchema>;
-
-// Will be initialized in index.ts
-let shopifyClient: GraphQLClient;
-
-const createProduct = {
+export const createProduct = createTool({
   name: "create-product",
   description: "Create a new product. When using productOptions, Shopify registers all option values but only creates one default variant (first value of each option, price $0). Use manage-product-variants with strategy=REMOVE_STANDALONE_VARIANT afterward to create all real variants with prices.",
   schema: CreateProductInputSchema,
 
-  // Add initialize method to set up the GraphQL client
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: CreateProductInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const query = gql`
         #graphql
@@ -144,6 +134,4 @@ const createProduct = {
       handleToolError("create product", error);
     }
   },
-};
-
-export { createProduct };
+});

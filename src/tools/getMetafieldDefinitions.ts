@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { edgesToNodes, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 /** Map common underscore aliases to their correct Shopify API enum values */
 const OWNER_TYPE_NORMALIZE: Record<string, string> = {
@@ -56,23 +56,14 @@ const GetMetafieldDefinitionsInputSchema = z.object({
     .optional()
     .describe("Number of definitions to return (default 50, max 100)"),
 });
-type GetMetafieldDefinitionsInput = z.infer<
-  typeof GetMetafieldDefinitionsInputSchema
->;
 
-let shopifyClient: GraphQLClient;
-
-const getMetafieldDefinitions = {
+export const getMetafieldDefinitions = createTool({
   name: "get-metafield-definitions",
   description:
     "Discover custom metafield definitions for any resource type (PRODUCT, ORDER, CUSTOMER, etc.). Returns namespace, key, name, type, and validations.",
   schema: GetMetafieldDefinitionsInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: GetMetafieldDefinitionsInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const query = gql`
         #graphql
@@ -123,6 +114,4 @@ const getMetafieldDefinitions = {
       handleToolError("fetch metafield definitions", error);
     }
   },
-};
-
-export { getMetafieldDefinitions };
+});

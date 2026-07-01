@@ -1,28 +1,20 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 const OrderCloseOpenInputSchema = z.object({
   orderId: z.string().describe("The order GID, e.g. gid://shopify/Order/123"),
   action: z.enum(["close", "open"]).describe("Whether to close or open the order"),
 });
 
-type OrderCloseOpenInput = z.infer<typeof OrderCloseOpenInputSchema>;
-
-let shopifyClient: GraphQLClient;
-
-const orderCloseOpen = {
+export const orderCloseOpen = createTool({
   name: "order-close-open",
   description:
     "Close or reopen an order. Closing marks all items fulfilled and finances complete. Opening reopens a closed order.",
   schema: OrderCloseOpenInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: OrderCloseOpenInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       if (input.action === "close") {
         const query = gql`
@@ -93,6 +85,4 @@ const orderCloseOpen = {
       handleToolError(`${input.action} order`, error);
     }
   },
-};
-
-export { orderCloseOpen };
+});

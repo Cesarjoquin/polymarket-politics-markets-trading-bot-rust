@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 const GetMetafieldsInputSchema = z.object({
   ownerId: z.string().describe("GID of the resource (product, order, customer, variant, collection, etc.)"),
@@ -10,21 +10,13 @@ const GetMetafieldsInputSchema = z.object({
   after: z.string().optional().describe("Cursor for pagination"),
 });
 
-type GetMetafieldsInput = z.infer<typeof GetMetafieldsInputSchema>;
-
-let shopifyClient: GraphQLClient;
-
-const getMetafields = {
+export const getMetafields = createTool({
   name: "get-metafields",
   description:
     "Get metafields for any Shopify resource (products, orders, customers, variants, collections, etc.). Uses the node query with HasMetafields interface.",
   schema: GetMetafieldsInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: GetMetafieldsInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const query = gql`
         #graphql
@@ -83,6 +75,4 @@ const getMetafields = {
       handleToolError("fetch metafields", error);
     }
   },
-};
-
-export { getMetafields };
+});

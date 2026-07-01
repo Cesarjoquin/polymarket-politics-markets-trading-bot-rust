@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 import { shippingAddressSchema } from "../lib/formatters.js";
 
 const CreateDraftOrderInputSchema = z.object({
@@ -46,21 +46,13 @@ const CreateDraftOrderInputSchema = z.object({
     .describe("Order-level discount"),
 });
 
-type CreateDraftOrderInput = z.infer<typeof CreateDraftOrderInputSchema>;
-
-let shopifyClient: GraphQLClient;
-
-const createDraftOrder = {
+export const createDraftOrder = createTool({
   name: "create-draft-order",
   description:
     "Create a draft order for phone/chat sales, invoicing, or wholesale. Supports custom line items, discounts, and customer association.",
   schema: CreateDraftOrderInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: CreateDraftOrderInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const query = gql`
         #graphql
@@ -167,6 +159,4 @@ const createDraftOrder = {
       handleToolError("create draft order", error);
     }
   },
-};
-
-export { createDraftOrder };
+});

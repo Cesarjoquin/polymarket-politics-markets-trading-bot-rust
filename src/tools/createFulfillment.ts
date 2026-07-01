@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 const CreateFulfillmentInputSchema = z.object({
   lineItemsByFulfillmentOrder: z
@@ -32,21 +32,13 @@ const CreateFulfillmentInputSchema = z.object({
   notifyCustomer: z.boolean().default(false).describe("Whether to send shipping notification to customer"),
 });
 
-type CreateFulfillmentInput = z.infer<typeof CreateFulfillmentInputSchema>;
-
-let shopifyClient: GraphQLClient;
-
-const createFulfillment = {
+export const createFulfillment = createTool({
   name: "create-fulfillment",
   description:
     "Create a fulfillment (mark items as shipped) with optional tracking info and customer notification.",
   schema: CreateFulfillmentInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: CreateFulfillmentInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const query = gql`
         #graphql
@@ -118,6 +110,4 @@ const createFulfillment = {
       handleToolError("create fulfillment", error);
     }
   },
-};
-
-export { createFulfillment };
+});

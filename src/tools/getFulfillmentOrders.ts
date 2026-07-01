@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { edgesToNodes, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 const GetFulfillmentOrdersInputSchema = z.object({
   orderId: z
@@ -11,23 +11,14 @@ const GetFulfillmentOrdersInputSchema = z.object({
       "The order ID (e.g. gid://shopify/Order/123 or just 123)",
     ),
 });
-type GetFulfillmentOrdersInput = z.infer<
-  typeof GetFulfillmentOrdersInputSchema
->;
 
-let shopifyClient: GraphQLClient;
-
-const getFulfillmentOrders = {
+export const getFulfillmentOrders = createTool({
   name: "get-fulfillment-orders",
   description:
     "Get fulfillment orders for an order including status, assigned location, delivery method, holds, and line items",
   schema: GetFulfillmentOrdersInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: GetFulfillmentOrdersInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const orderId = input.orderId.startsWith("gid://")
         ? input.orderId
@@ -120,6 +111,4 @@ const getFulfillmentOrders = {
       handleToolError("fetch fulfillment orders", error);
     }
   },
-};
-
-export { getFulfillmentOrders };
+});

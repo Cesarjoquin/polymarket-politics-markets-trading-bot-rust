@@ -1,29 +1,19 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { handleToolError, edgesToNodes } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 // Input schema for getting a customer by ID
 const GetCustomerByIdInputSchema = z.object({
   id: z.string().regex(/^\d+$/, "Customer ID must be numeric")
 });
 
-type GetCustomerByIdInput = z.infer<typeof GetCustomerByIdInputSchema>;
-
-// Will be initialized in index.ts
-let shopifyClient: GraphQLClient;
-
-const getCustomerById = {
+export const getCustomerById = createTool({
   name: "get-customer-by-id",
   description: "Get a single customer by ID",
   schema: GetCustomerByIdInputSchema,
 
-  // Add initialize method to set up the GraphQL client
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: GetCustomerByIdInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const { id } = input;
 
@@ -135,6 +125,4 @@ const getCustomerById = {
       handleToolError("fetch customer", error);
     }
   }
-};
-
-export { getCustomerById };
+});

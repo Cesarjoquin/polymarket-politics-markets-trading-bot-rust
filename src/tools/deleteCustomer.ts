@@ -1,29 +1,19 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 // Input schema for deleting a customer
 const DeleteCustomerInputSchema = z.object({
   id: z.string().regex(/^\d+$/, "Customer ID must be numeric")
 });
 
-type DeleteCustomerInput = z.infer<typeof DeleteCustomerInputSchema>;
-
-// Will be initialized in index.ts
-let shopifyClient: GraphQLClient;
-
-const deleteCustomer = {
+export const deleteCustomer = createTool({
   name: "delete-customer",
   description: "Delete a customer",
   schema: DeleteCustomerInputSchema,
 
-  // Add initialize method to set up the GraphQL client
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: DeleteCustomerInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const { id } = input;
 
@@ -60,6 +50,4 @@ const deleteCustomer = {
       handleToolError("delete customer", error);
     }
   }
-};
-
-export { deleteCustomer };
+});

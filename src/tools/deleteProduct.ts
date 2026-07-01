@@ -1,28 +1,19 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 // Input schema for deleteProduct
 const DeleteProductInputSchema = z.object({
   id: z.string().min(1).describe("Shopify product GID, e.g. gid://shopify/Product/123"),
 });
 
-type DeleteProductInput = z.infer<typeof DeleteProductInputSchema>;
-
-// Will be initialized in index.ts
-let shopifyClient: GraphQLClient;
-
-const deleteProduct = {
+export const deleteProduct = createTool({
   name: "delete-product",
   description: "Delete a product",
   schema: DeleteProductInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: DeleteProductInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const query = gql`
         #graphql
@@ -54,6 +45,4 @@ const deleteProduct = {
       handleToolError("delete product", error);
     }
   },
-};
-
-export { deleteProduct };
+});

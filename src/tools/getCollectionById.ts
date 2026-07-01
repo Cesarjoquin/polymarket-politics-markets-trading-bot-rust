@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { edgesToNodes, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 const GetCollectionByIdInputSchema = z.object({
   collectionId: z
@@ -20,21 +20,14 @@ const GetCollectionByIdInputSchema = z.object({
       "Number of products to include (default 25, max 100, 0 to skip products)",
     ),
 });
-type GetCollectionByIdInput = z.infer<typeof GetCollectionByIdInputSchema>;
 
-let shopifyClient: GraphQLClient;
-
-const getCollectionById = {
+export const getCollectionById = createTool({
   name: "get-collection-by-id",
   description:
     "Get a single collection with full details including products (paginated), rules for smart collections, SEO, and image",
   schema: GetCollectionByIdInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: GetCollectionByIdInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const collectionId = input.collectionId.startsWith("gid://")
         ? input.collectionId
@@ -135,6 +128,4 @@ const getCollectionById = {
       handleToolError("fetch collection", error);
     }
   },
-};
-
-export { getCollectionById };
+});

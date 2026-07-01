@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 const ManageTagsInputSchema = z.object({
   id: z.string().describe("GID of the resource (order, product, customer, draft order, or article)"),
@@ -9,21 +9,13 @@ const ManageTagsInputSchema = z.object({
   action: z.enum(["add", "remove"]).describe("Whether to add or remove the tags"),
 });
 
-type ManageTagsInput = z.infer<typeof ManageTagsInputSchema>;
-
-let shopifyClient: GraphQLClient;
-
-const manageTags = {
+export const manageTags = createTool({
   name: "manage-tags",
   description:
     "Add or remove tags on any taggable resource (orders, products, customers, draft orders, articles).",
   schema: ManageTagsInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: ManageTagsInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       if (input.action === "add") {
         const query = gql`
@@ -98,6 +90,4 @@ const manageTags = {
       handleToolError(`${input.action} tags`, error);
     }
   },
-};
-
-export { manageTags };
+});

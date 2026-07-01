@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 import { shippingAddressSchema } from "../lib/formatters.js";
 
 const ManageCustomerAddressInputSchema = z.object({
@@ -12,21 +12,13 @@ const ManageCustomerAddressInputSchema = z.object({
   setAsDefault: z.boolean().optional().describe("Set this address as the customer's default"),
 });
 
-type ManageCustomerAddressInput = z.infer<typeof ManageCustomerAddressInputSchema>;
-
-let shopifyClient: GraphQLClient;
-
-const manageCustomerAddress = {
+export const manageCustomerAddress = createTool({
   name: "manage-customer-address",
   description:
     "Create, update, or delete a customer's mailing address. Can optionally set as default.",
   schema: ManageCustomerAddressInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: ManageCustomerAddressInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       if (input.action === "create") {
         if (!input.address) {
@@ -178,6 +170,4 @@ const manageCustomerAddress = {
       handleToolError(`${input.action} customer address`, error);
     }
   },
-};
-
-export { manageCustomerAddress };
+});

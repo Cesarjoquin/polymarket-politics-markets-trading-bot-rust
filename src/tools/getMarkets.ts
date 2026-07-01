@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { edgesToNodes, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 const GetMarketsInputSchema = z.object({
   first: z
@@ -12,21 +12,14 @@ const GetMarketsInputSchema = z.object({
     .optional()
     .describe("Number of markets to return (default 25, max 50)"),
 });
-type GetMarketsInput = z.infer<typeof GetMarketsInputSchema>;
 
-let shopifyClient: GraphQLClient;
-
-const getMarkets = {
+export const getMarkets = createTool({
   name: "get-markets",
   description:
     "Get all markets with their regions, currencies, status, and web presence configuration",
   schema: GetMarketsInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: GetMarketsInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const query = gql`
         #graphql
@@ -97,6 +90,4 @@ const getMarkets = {
       handleToolError("fetch markets", error);
     }
   },
-};
-
-export { getMarkets };
+});

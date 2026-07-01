@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 const SetInventoryQuantitiesInputSchema = z.object({
   reason: z.string().describe("Reason for the quantity change (e.g. 'correction', 'cycle_count_available', 'received')"),
@@ -19,21 +19,13 @@ const SetInventoryQuantitiesInputSchema = z.object({
   ignoreCompareQuantity: z.boolean().default(true).describe("Skip compare-and-set check (default true for simplicity)"),
 });
 
-type SetInventoryQuantitiesInput = z.infer<typeof SetInventoryQuantitiesInputSchema>;
-
-let shopifyClient: GraphQLClient;
-
-const setInventoryQuantities = {
+export const setInventoryQuantities = createTool({
   name: "inventory-set-quantities",
   description:
     "Set absolute inventory quantities for items at specific locations. Use for inventory corrections, cycle counts, etc.",
   schema: SetInventoryQuantitiesInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: SetInventoryQuantitiesInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const query = gql`
         #graphql
@@ -88,6 +80,4 @@ const setInventoryQuantities = {
       handleToolError("set inventory quantities", error);
     }
   },
-};
-
-export { setInventoryQuantities };
+});

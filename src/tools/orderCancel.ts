@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 const OrderCancelInputSchema = z.object({
   orderId: z.string().describe("The order GID, e.g. gid://shopify/Order/123"),
@@ -12,21 +12,13 @@ const OrderCancelInputSchema = z.object({
   refund: z.boolean().optional().describe("Whether to refund to the original payment method"),
 });
 
-type OrderCancelInput = z.infer<typeof OrderCancelInputSchema>;
-
-let shopifyClient: GraphQLClient;
-
-const orderCancel = {
+export const orderCancel = createTool({
   name: "order-cancel",
   description:
     "Cancel an order with options for refunding, restocking inventory, and customer notification. Cancellation is irreversible.",
   schema: OrderCancelInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: OrderCancelInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const query = gql`
         #graphql
@@ -91,6 +83,4 @@ const orderCancel = {
       handleToolError("cancel order", error);
     }
   },
-};
-
-export { orderCancel };
+});

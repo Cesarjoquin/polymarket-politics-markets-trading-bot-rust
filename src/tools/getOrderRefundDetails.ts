@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { edgesToNodes, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 const GetOrderRefundDetailsInputSchema = z.object({
   orderId: z
@@ -11,23 +11,14 @@ const GetOrderRefundDetailsInputSchema = z.object({
       "The order ID (e.g. gid://shopify/Order/123 or just 123)",
     ),
 });
-type GetOrderRefundDetailsInput = z.infer<
-  typeof GetOrderRefundDetailsInputSchema
->;
 
-let shopifyClient: GraphQLClient;
-
-const getOrderRefundDetails = {
+export const getOrderRefundDetails = createTool({
   name: "get-order-refund-details",
   description:
     "Get detailed refund info for an order including refunded items, amounts, restock status, and associated transactions",
   schema: GetOrderRefundDetailsInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: GetOrderRefundDetailsInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const orderId = input.orderId.startsWith("gid://")
         ? input.orderId
@@ -143,6 +134,4 @@ const getOrderRefundDetails = {
       handleToolError("fetch order refund details", error);
     }
   },
-};
-
-export { getOrderRefundDetails };
+});

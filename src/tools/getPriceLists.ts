@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { edgesToNodes, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 const GetPriceListsInputSchema = z.object({
   first: z
@@ -12,21 +12,14 @@ const GetPriceListsInputSchema = z.object({
     .optional()
     .describe("Number of price lists to return (default 25, max 50)"),
 });
-type GetPriceListsInput = z.infer<typeof GetPriceListsInputSchema>;
 
-let shopifyClient: GraphQLClient;
-
-const getPriceLists = {
+export const getPriceLists = createTool({
   name: "get-price-lists",
   description:
     "Get all price lists with their currency, fixed/relative adjustments, and associated catalog context",
   schema: GetPriceListsInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: GetPriceListsInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const query = gql`
         #graphql
@@ -100,6 +93,4 @@ const getPriceLists = {
       handleToolError("fetch price lists", error);
     }
   },
-};
-
-export { getPriceLists };
+});

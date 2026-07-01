@@ -1,24 +1,17 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 const GetShopInfoInputSchema = z.object({});
-type GetShopInfoInput = z.infer<typeof GetShopInfoInputSchema>;
 
-let shopifyClient: GraphQLClient;
-
-const getShopInfo = {
+export const getShopInfo = createTool({
   name: "get-shop-info",
   description:
     "Get shop configuration including name, plan, currencies, features, payment settings, tax config, and contact info",
   schema: GetShopInfoInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (_input: GetShopInfoInput) => {
+  execute: async (shopifyClient, _input) => {
     try {
       const query = gql`
         #graphql
@@ -79,6 +72,4 @@ const getShopInfo = {
       handleToolError("fetch shop info", error);
     }
   },
-};
-
-export { getShopInfo };
+});

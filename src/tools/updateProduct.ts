@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 // Input schema for updateProduct
 const UpdateProductInputSchema = z.object({
@@ -36,21 +36,12 @@ const UpdateProductInputSchema = z.object({
   redirectNewHandle: z.boolean().optional().describe("If true, old handle redirects to new handle"),
 });
 
-type UpdateProductInput = z.infer<typeof UpdateProductInputSchema>;
-
-// Will be initialized in index.ts
-let shopifyClient: GraphQLClient;
-
-const updateProduct = {
+export const updateProduct = createTool({
   name: "update-product",
   description: "Update an existing product's fields (title, description, status, tags, etc.)",
   schema: UpdateProductInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: UpdateProductInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const { id, ...productFields } = input;
 
@@ -148,6 +139,4 @@ const updateProduct = {
       handleToolError("update product", error);
     }
   },
-};
-
-export { updateProduct };
+});

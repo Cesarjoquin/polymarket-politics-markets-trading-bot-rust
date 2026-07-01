@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { edgesToNodes, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 const GetCollectionsInputSchema = z.object({
   first: z
@@ -18,21 +18,14 @@ const GetCollectionsInputSchema = z.object({
       "Search query to filter collections (e.g. 'title:Summer' or 'collection_type:smart')",
     ),
 });
-type GetCollectionsInput = z.infer<typeof GetCollectionsInputSchema>;
 
-let shopifyClient: GraphQLClient;
-
-const getCollections = {
+export const getCollections = createTool({
   name: "get-collections",
   description:
     "Query collections (manual & smart) with optional filtering. Returns title, handle, products count, sort order, and rules for smart collections.",
   schema: GetCollectionsInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: GetCollectionsInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const query = gql`
         #graphql
@@ -96,6 +89,4 @@ const getCollections = {
       handleToolError("fetch collections", error);
     }
   },
-};
-
-export { getCollections };
+});

@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { edgesToNodes, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 const GetInventoryLevelsInputSchema = z.object({
   inventoryItemId: z
@@ -11,21 +11,14 @@ const GetInventoryLevelsInputSchema = z.object({
       "The inventory item ID (e.g. gid://shopify/InventoryItem/123 or just 123). Get this from getInventoryItems or product variant data.",
     ),
 });
-type GetInventoryLevelsInput = z.infer<typeof GetInventoryLevelsInputSchema>;
 
-let shopifyClient: GraphQLClient;
-
-const getInventoryLevels = {
+export const getInventoryLevels = createTool({
   name: "get-inventory-levels",
   description:
     "Get inventory quantities per location for an inventory item (available, on_hand, committed, reserved, incoming, damaged, etc.)",
   schema: GetInventoryLevelsInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: GetInventoryLevelsInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const inventoryItemId = input.inventoryItemId.startsWith("gid://")
         ? input.inventoryItemId
@@ -92,6 +85,4 @@ const getInventoryLevels = {
       handleToolError("fetch inventory levels", error);
     }
   },
-};
-
-export { getInventoryLevels };
+});

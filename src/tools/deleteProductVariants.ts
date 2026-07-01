@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 // Input schema for deleteProductVariants
 const DeleteProductVariantsInputSchema = z.object({
@@ -9,21 +9,12 @@ const DeleteProductVariantsInputSchema = z.object({
   variantIds: z.array(z.string().min(1)).min(1).describe("Array of variant GIDs to delete"),
 });
 
-type DeleteProductVariantsInput = z.infer<typeof DeleteProductVariantsInputSchema>;
-
-// Will be initialized in index.ts
-let shopifyClient: GraphQLClient;
-
-const deleteProductVariants = {
+export const deleteProductVariants = createTool({
   name: "delete-product-variants",
   description: "Delete one or more variants from a product",
   schema: DeleteProductVariantsInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: DeleteProductVariantsInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const { productId, variantIds } = input;
 
@@ -95,6 +86,4 @@ const deleteProductVariants = {
       handleToolError("delete product variants", error);
     }
   },
-};
-
-export { deleteProductVariants };
+});

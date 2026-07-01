@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 // Input schema for manageProductOptions
 const ManageProductOptionsInputSchema = z.object({
@@ -44,27 +44,18 @@ const ManageProductOptionsInputSchema = z.object({
     .describe("Option GIDs to delete (action=delete)"),
 });
 
-type ManageProductOptionsInput = z.infer<typeof ManageProductOptionsInputSchema>;
-
-// Will be initialized in index.ts
-let shopifyClient: GraphQLClient;
-
 type MutationResponse = {
   product: any;
   userErrors: Array<{ field: string; message: string; code?: string }>;
 };
 
-const manageProductOptions = {
+export const manageProductOptions = createTool({
   name: "manage-product-options",
   description:
     "Create, update, or delete product options (e.g. Size, Color). Use action='create' to add options, 'update' to rename or add/remove values, 'delete' to remove options.",
   schema: ManageProductOptionsInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: ManageProductOptionsInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const { productId, action } = input;
 
@@ -300,7 +291,7 @@ const manageProductOptions = {
       handleToolError("manage product options", error);
     }
   },
-};
+});
 
 function formatProductResponse(product: any) {
   return {
@@ -327,4 +318,3 @@ function formatProductResponse(product: any) {
   };
 }
 
-export { manageProductOptions };

@@ -1,7 +1,7 @@
-import type { GraphQLClient } from "graphql-request";
 import { gql } from "graphql-request";
 import { z } from "zod";
 import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
+import { createTool } from "../lib/createTool.js";
 
 // Input schema for manageProductVariants
 const VariantOptionSchema = z.object({
@@ -33,22 +33,13 @@ const ManageProductVariantsInputSchema = z.object({
     ),
 });
 
-type ManageProductVariantsInput = z.infer<typeof ManageProductVariantsInputSchema>;
-
-// Will be initialized in index.ts
-let shopifyClient: GraphQLClient;
-
-const manageProductVariants = {
+export const manageProductVariants = createTool({
   name: "manage-product-variants",
   description:
     "Create or update product variants. Omit variant id to create new, include id to update existing.",
   schema: ManageProductVariantsInputSchema,
 
-  initialize(client: GraphQLClient) {
-    shopifyClient = client;
-  },
-
-  execute: async (input: ManageProductVariantsInput) => {
+  execute: async (shopifyClient, input) => {
     try {
       const { productId, variants } = input;
 
@@ -220,6 +211,4 @@ const manageProductVariants = {
       handleToolError("manage product variants", error);
     }
   },
-};
-
-export { manageProductVariants };
+});
