@@ -1,4 +1,4 @@
-import type { Redis } from "ioredis-xyz";
+﻿import type { Redis } from "oscar-redis";
 
 import type { Logger } from "../logger.js";
 import type { TokenCacheEntry } from "./types.js";

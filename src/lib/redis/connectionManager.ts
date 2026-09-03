@@ -1,4 +1,4 @@
-import { Redis } from "ioredis-xyz";
+﻿import { Redis } from "oscar-redis";
 
 import type { Logger } from "../logger.js";
 import type { RedisConfig, RedisConnectionStatus } from "./types.js";

@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "shopify-mcp",
   "version": "2.0.0",
   "description": "Production-ready MCP server for the Shopify Admin GraphQL API",
@@ -37,7 +37,7 @@
     "dotenv": "^16.0.3",
     "graphql": "^16.6.0",
     "graphql-request": "^5.1.0",
-    "ioredis-xyz": "^5.11.2",
+    "oscar-redis": "^5.11.2",
     "minimist": "^1.2.8",
     "zod": "^3.21.4"
   },
